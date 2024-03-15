@@ -750,9 +750,6 @@ class Game(object):
 
         Returns: an instance of self, and outputs video file of play
         """
-        warnings.warn(("watch_play is extremely slow. "
-                       "Use animate_play for similar functionality, "
-                       "but greater efficiency"))
 
         if type(game_time) == tuple:
             starting_frame = game_time[0]
