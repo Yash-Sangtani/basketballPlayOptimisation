@@ -24,7 +24,7 @@ def extract_games():
     games = []
     with open('allgames.txt', 'r') as game_file:
         for line in game_file:
-            game = line.split('.')
+            game = line.strip().split('.')
             date = "{game[0]}.{game[1]}.{game[2]}".format(game=game)
             away = game[3]
             home = game[5]

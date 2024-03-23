@@ -1,7 +1,7 @@
 """
 Scripts for analyzing spacing of NBA tracking data.
 
-The workhorse statistic for spacing is "Convex Hull"
+The workhorse statistic for spacing is "Convex Hull."
 """
 
 import os
@@ -21,13 +21,13 @@ def extract_games():
     Returns:
         list: list of games.  Each element is list is
             [date, home_team, away_team]
-            example element: ['01.01.2016', 'TOR', 'CHI']
+            an example element: ['01.01.2016', 'TOR', 'CHI']
     """
 
     games = []
     with open('allgames.txt', 'r') as game_file:
         for line in game_file:
-            game = line.split('.')
+            game = line.strip().split('.')
             date = "{game[0]}.{game[1]}.{game[2]}".format(game=game)
             away = game[3]
             home = game[5]
@@ -96,8 +96,8 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
         score = game.pbp['SCORE'].ix[len(game.pbp) - 1]
         pickle.dump(score, open('data/score/' + filename + '.p', "wb"))
 
-    return(home_offense_areas, home_defense_areas,
-           away_offense_areas, away_defense_areas)
+    return (home_offense_areas, home_defense_areas,
+            away_offense_areas, away_defense_areas)
 
 
 def write_spacing(gamelist):
@@ -135,7 +135,7 @@ def plot_spacing(date, home_team, away_team, defense=True, save_plot=False):
                 "{home_team}").format(date=date, away_team=away_team,
                                       home_team=home_team)
     if filename in os.listdir('data/spacing'):
-        data = pickle.load(open("data/spacing/"+filename, "rb"))
+        data = pickle.load(open("data/spacing/" + filename, "rb"))
     else:
         return None
     plt.figure()
@@ -181,8 +181,8 @@ def get_spacing_details(game):
     fname = "{game[0]}-{game[2]}-{game[1]}.p".format(game=game)
     if (fname in os.listdir('data/spacing') and
             fname in os.listdir('data/score')):
-        data = pickle.load(open("data/spacing/"+fname, "rb"))
-        score = pickle.load(open("data/score/"+fname, "rb")).split(' ')
+        data = pickle.load(open("data/spacing/" + fname, "rb"))
+        score = pickle.load(open("data/score/" + fname, "rb")).split(' ')
         away_points, home_points = score[0], score[2]
         means = tuple(map(np.mean, data))
         return (int(home_points), int(away_points), *means)
@@ -231,10 +231,10 @@ def plot_offense_vs_defense_spacing(spacing_data):
         spacing_data (pd.DataFrame): Dataframe with columns of spacing data
             ['home_offense_areas', 'home_defense_areas',
              'away_offense_areas', 'away_defense_areas']
-        save_fig (bool): if True, save plot to temp/ directory
+        savefig (bool): if True, save plot to temp/ directory
 
     Returns None
-        Also, shows plot.
+        Also shows plot.
     """
     sns.regplot(spacing_data.away_offense_areas,
                 spacing_data.home_defense_areas,
@@ -278,7 +278,7 @@ def plot_defense_spacing_vs_score(spacing_data):
     plt.close()
 
 
-def plot_defense_spacing_vs_wins(spacing_datae):
+def plot_defense_spacing_vs_wins(spacing_data):
     """
     Plot of team's defensive spacing vs wins (binary: 0, 1) for games
 
@@ -295,7 +295,7 @@ def plot_defense_spacing_vs_wins(spacing_datae):
     X = np.array(spacing_data.space_dif)
     X = X[:, np.newaxis]
     y = np.array(spacing_data.home_win)
-    y_adjusted = (y+1) / 2
+    y_adjusted = (y + 1) / 2
     clf.fit(X, y)
     plt.scatter(X.ravel(), y_adjusted, color=sns.color_palette()[0],
                 s=600, alpha=1, marker='|')
@@ -377,11 +377,12 @@ def plot_teams_ability_to_space_defense(spacing_data):
                 s=74, alpha=0.7,
                 c=sns.color_palette()[0])
     for row in df.iterrows():
-        if row[0] in ['DEN', 'SAS', 'LAC', 'CLE', 'DET', 'WAS', 'TOR',
-                      'MIL', 'ORL', 'DAL']:
-            plt.annotate(row[0],
-                         xy=[row[1]['average_induced_space'] + -0.15,
-                             row[1]['average_offense_space'] + 0.1])
+        if row[0] not in ['DEN', 'SAS', 'LAC', 'CLE', 'DET', 'WAS', 'TOR',
+                          'MIL', 'ORL', 'DAL']:
+            continue
+        plt.annotate(row[0],
+                     xy=(row[1]['average_induced_space'] + -0.15,
+                         row[1]['average_offense_space'] + 0.1))
     plt.xlabel('Average Offensive Spacing (sq ft)', fontsize=16)
     plt.ylabel("Average Opponent's Defensive Spacing (sq ft)", fontsize=16)
     plt.title("Team's ability to space opponent's defense", fontsize=16)
@@ -397,8 +398,8 @@ if __name__ == "__main__":
     """
 
     all_games = extract_games()
-    # Uncomment if writing spacing first time
-    # write_spacing(all_games)
+    # Uncomment if writing spacing for the first time
+    write_spacing(all_games)
     spacing_data = get_spacing_df(all_games)
     plot_offense_vs_defense_spacing(spacing_data)
     plot_defense_spacing_vs_score(spacing_data)
