@@ -22,7 +22,7 @@ def extract_games():
     """
 
     games = []
-    with open('allgames.txt', 'r') as game_file:
+    with open('ag.txt', 'r') as game_file:
         for line in game_file:
             game = line.strip().split('.')
             date = "{game[0]}.{game[1]}.{game[2]}".format(game=game)
@@ -68,9 +68,9 @@ def calculate_velocities(game, frame, highlight_player=None):
 
     # If not all the players are on the court, there is an error in the data
     if len(details[1]) != 11 or \
-       len(details[2]) != 11 or \
-       len(previous_details[1]) != 11 or \
-       len(previous_details[2]) != 11:
+            len(details[2]) != 11 or \
+            len(previous_details[1]) != 11 or \
+            len(previous_details[2]) != 11:
         return (game_time, 0, 0)
 
     delta_x = np.array(details[1]) - np.array(previous_details[1])
@@ -120,7 +120,7 @@ def plot_velocity_frame(game, frame_number, ax, highlight_player=None):
     plt.ylim(-55, 5)
     sns.set_style('dark')
     plt.figtext(0.43, 0.105, shot_clock, size=18)
-    plt.figtext(0.5, 0.105, 'Q'+str(quarter), size=18)
+    plt.figtext(0.5, 0.105, 'Q' + str(quarter), size=18)
     plt.figtext(0.57, 0.105, str(game_clock), size=18)
     plt.figtext(0.43, .442,
                 game.away_team + "  " + score + "  " + game.home_team,
@@ -178,12 +178,12 @@ def watch_play_velocities(game, game_time, length, highlight_player=None):
         ax1.set_xlim([0, len(indices)])
         ax1.set_ylim([0, max_velocity * 1.2])
         if highlight_player:
-            ax1.plot(indices[:index+1], player_velocities[:index+1],
+            ax1.plot(indices[:index + 1], player_velocities[:index + 1],
                      c='black', label=highlight_player)
         else:
-            ax1.plot(indices[:index+1], home_velocities[:index+1],
+            ax1.plot(indices[:index + 1], home_velocities[:index + 1],
                      c=game.team_colors[game.home_id], label=game.home_team)
-            ax1.plot(indices[:index+1], away_velocities[:index+1],
+            ax1.plot(indices[:index + 1], away_velocities[:index + 1],
                      c=game.team_colors[game.away_id], label=game.away_team)
         ax1.set_yticklabels([])
         ax1.set_xticklabels([])
@@ -236,8 +236,8 @@ def get_velocity_statistics(date, home_team, away_team, write_file=False,
                (frame, game_time, velocity) for each frame in the game.
     """
     filename = ("{date}-{away_team}-"
-                "{home_team}.p").format(date=date, away_team=away_team,
-                                        home_team=home_team)
+                "{home_team}.pkl").format(date=date, away_team=away_team,
+                                          home_team=home_team)
     # Do not recalculate spacing data if already saved to disk
     if filename in os.listdir('./data/velocity/'):
         return
@@ -271,11 +271,11 @@ def get_velocity_statistics(date, home_team, away_team, write_file=False,
                     "{home_team}").format(date=date,
                                           away_team=away_team,
                                           home_team=home_team)
-        pickle.dump(results, open('data/velocity/' + filename + '.p', "wb"))
+        pickle.dump(results, open('data/velocity/' + filename, "wb"))
     # Write game scores to disk
     if write_score:
         score = game.pbp['SCORE'].ix[len(game.pbp) - 1]
-        pickle.dump(score, open('data/score/' + filename + '.p', "wb"))
+        pickle.dump(score, open('data/score/' + filename, "wb"))
 
     return (home_offense_velocities, home_defense_velocities,
             away_offense_velocities, away_defense_velocities)
@@ -323,17 +323,17 @@ def extract_velocity(gamelist):
         home_team = game[1]
         print(away_team, home_team)
         filename = ("{date}-{away_team}-"
-                    "{home_team}").format(date=game[0],
-                                          away_team=away_team,
-                                          home_team=home_team)
+                    "{home_team}.pkl").format(date=game[0],
+                                              away_team=away_team,
+                                              home_team=home_team)
 
         # Load velocity/score data
         try:
             velocity_data = pickle.load(open('data/velocity/'
-                                             + filename + '.p',
+                                             + filename,
                                              'rb'))
             score_data = pickle.load(open('data/score/'
-                                          + filename + '.p',
+                                          + filename,
                                           'rb'))
         except:
             print('velocity data not written for: ', game)
@@ -388,17 +388,17 @@ def extract_fatigue(gamelist):
         home_team = game[1]
         print(away_team, home_team)
         filename = ("{date}-{away_team}-"
-                    "{home_team}").format(date=game[0],
+                    "{home_team}.pkl").format(date=game[0],
                                           away_team=away_team,
                                           home_team=home_team)
 
         # Load velocity/score data
         try:
             velocity_data = pickle.load(open('data/velocity/'
-                                             + filename + '.p',
+                                             + filename,
                                              'rb'))
             score_data = pickle.load(open('data/score/'
-                                          + filename + '.p',
+                                          + filename,
                                           'rb'))
         except:
             print('velocity data not written for: ', game)
@@ -422,8 +422,8 @@ def extract_fatigue(gamelist):
 
         quarter_velocities = {}
         for quarter in [1, 2, 3, 4]:
-            ending_frame = int(len(HOV)/4 * quarter)
-            starting_frame = int(len(HOV)/4 * (quarter-1))
+            ending_frame = int(len(HOV) / 4 * quarter)
+            starting_frame = int(len(HOV) / 4 * (quarter - 1))
 
             quarter_velocities[quarter] = [HOV.iloc[starting_frame:
                                                     ending_frame][2].mean(),
@@ -477,7 +477,7 @@ def velocity_plots(df):
     locs, labels = plt.xticks()
     plt.setp(labels, rotation=90)
     locs, labels = plt.yticks()
-    plt.yticks(locs, map(lambda x: "%.1f" % x, locs*1000))
+    plt.yticks(locs, map(lambda x: "%.1f" % x, locs * 1000))
     plt.ylabel('Mean Offensive Velocity (ft/sec)')
     plt.xlabel('')
     plt.title('Offensive Velocity')
@@ -492,7 +492,7 @@ def velocity_plots(df):
     locs, labels = plt.xticks()
     plt.setp(labels, rotation=90)
     locs, labels = plt.yticks()
-    plt.yticks(locs, map(lambda x: "%.1f" % x, locs*1000))
+    plt.yticks(locs, map(lambda x: "%.1f" % x, locs * 1000))
     plt.ylabel('Mean Defensive Velocity (ft/sec)')
     plt.xlabel('')
     plt.title('Defensive Velocity')
@@ -519,7 +519,7 @@ def fatigue_plots(df):
     plt.ylabel('Mean Offensive Velocity (ft/sec)')
     plt.ylim(0.015, 0.034)
     locs, labels = plt.yticks()
-    plt.yticks(locs, map(lambda x: "%.1f" % x, locs*1000))
+    plt.yticks(locs, map(lambda x: "%.1f" % x, locs * 1000))
     plt.savefig('examples/INDfatige')
 
     plt.figure()
@@ -529,7 +529,7 @@ def fatigue_plots(df):
     plt.xlabel('Quarter')
     plt.ylabel('Mean Offensive Velocity (ft/sec)')
     locs, labels = plt.yticks()
-    plt.yticks(locs, map(lambda x: "%.1f" % x, locs*1000))
+    plt.yticks(locs, map(lambda x: "%.1f" % x, locs * 1000))
     plt.savefig('examples/SASfatige')
 
 

@@ -25,7 +25,7 @@ def extract_games():
     """
 
     games = []
-    with open('allgames.txt', 'r') as game_file:
+    with open('ag.txt', 'r') as game_file:
         for line in game_file:
             game = line.strip().split('.')
             date = "{game[0]}.{game[1]}.{game[2]}".format(game=game)
@@ -59,9 +59,9 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
                for each frame in the game.
     """
     filename = ("{date}-{away_team}-"
-                "{home_team}.p").format(date=date,
-                                        away_team=away_team,
-                                        home_team=home_team)
+                "{home_team}.pkl").format(date=date,
+                                          away_team=away_team,
+                                          home_team=home_team)
     # Do not recalculate spacing data if already saved to disk
     if filename in os.listdir('./data/spacing'):
         return
@@ -86,15 +86,13 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
                away_offense_areas, away_defense_areas)
     # Write spacing data to disk
     if write_file:
-        filename = ("{date}-{away_team}-"
-                    "{home_team}").format(date=date,
-                                          away_team=away_team,
-                                          home_team=home_team)
-        pickle.dump(results, open('data/spacing/' + filename + '.p', "wb"))
+        pickle.dump(results, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Code/data/spacing/' +
+                                  filename, "wb"))
     # Write game scores to disk
     if write_score:
-        score = game.pbp['SCORE'].ix[len(game.pbp) - 1]
-        pickle.dump(score, open('data/score/' + filename + '.p', "wb"))
+        score = game.pbp['SCORE'].iloc[len(game.pbp) - 1]
+        pickle.dump(score, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Code/data/score/' +
+                                filename, "wb"))
 
     return (home_offense_areas, home_defense_areas,
             away_offense_areas, away_defense_areas)
@@ -132,8 +130,8 @@ def plot_spacing(date, home_team, away_team, defense=True, save_plot=False):
     """
     plt.plot()
     filename = ("{date}-{away_team}-"
-                "{home_team}").format(date=date, away_team=away_team,
-                                      home_team=home_team)
+                "{home_team}.pkl").format(date=date, away_team=away_team,
+                                          home_team=home_team)
     if filename in os.listdir('data/spacing'):
         data = pickle.load(open("data/spacing/" + filename, "rb"))
     else:
@@ -178,7 +176,7 @@ def get_spacing_details(game):
 
     """
 
-    fname = "{game[0]}-{game[2]}-{game[1]}.p".format(game=game)
+    fname = "{game[0]}-{game[2]}-{game[1]}.pkl".format(game=game)
     if (fname in os.listdir('data/spacing') and
             fname in os.listdir('data/score')):
         data = pickle.load(open("data/spacing/" + fname, "rb"))
@@ -236,12 +234,12 @@ def plot_offense_vs_defense_spacing(spacing_data):
     Returns None
         Also shows plot.
     """
-    sns.regplot(spacing_data.away_offense_areas,
-                spacing_data.home_defense_areas,
+    sns.regplot(x=spacing_data['away_offense_areas'],
+                y=spacing_data['home_defense_areas'],
                 fit_reg=True, color=sns.color_palette()[0],
                 ci=None)
-    sns.regplot(spacing_data.home_offense_areas,
-                spacing_data.away_defense_areas,
+    sns.regplot(x=spacing_data['home_offense_areas'],
+                y=spacing_data['away_defense_areas'],
                 fit_reg=False, color=sns.color_palette()[0],
                 ci=None)
     plt.xlabel('Average Offensive Spacing (sq ft)', fontsize=16)
@@ -266,9 +264,16 @@ def plot_defense_spacing_vs_score(spacing_data):
     Returns None
         Also, shows plot.
     """
-    y = spacing_data.home_points - spacing_data.away_points
-    x = spacing_data.away_defense_areas - spacing_data.home_defense_areas
-    sns.regplot(x, y, ci=False)
+    # Calculate score differential
+    score_differential = spacing_data['home_points'] - spacing_data['away_points']
+
+    # Calculate defensive spacing differential
+    defensive_spacing_differential = spacing_data['away_defense_areas'] - spacing_data['home_defense_areas']
+
+    # Plot
+    sns.regplot(x=defensive_spacing_differential,
+                y=score_differential,
+                ci=False)
     plt.xlabel(' Home Team Defensive Spacing Differential (sq ft)',
                fontsize=16)
     plt.ylabel('Home Team Score Differential (pts)', fontsize=16)
