@@ -5,6 +5,7 @@ import warnings
 import json
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from subprocess import Popen, PIPE
 import numpy as np
 import seaborn as sns
@@ -79,10 +80,12 @@ class Game(object):
         self.pbp = None
         self.moments = None
         self.player_ids = None
+        self.jersey_numbers = None
         self._get_tracking_data()
         self._get_playbyplay_data()
         self._format_tracking_data()
         self._get_player_ids()
+        self._get_jersey_numbers()
         self.away_id = self.tracking_data['events'][0]['visitor']['teamid']
         self.home_id = self.tracking_data['events'][0]['home']['teamid']
         self.team_colors = {-1: "orange",
@@ -146,16 +149,30 @@ class Game(object):
             accessible in tracking_data.
         """
         ids = {}
-        for index, row in self.pbp.iterrows():
-            if row['PLAYER1_NAME'] not in ids:
-                ids[row['PLAYER1_NAME']] = row['PLAYER1_ID']
-            if row['PLAYER2_NAME'] not in ids:
-                ids[row['PLAYER2_NAME']] = row['PLAYER2_ID']
-            if row['PLAYER3_NAME'] not in ids:
-                ids[row['PLAYER3_NAME']] = row['PLAYER3_ID']
-        ids.pop('nan', None)
+        for player in self.tracking_data['events'][0]['home']['players']:
+            ids[player['firstname'] + ' ' + player['lastname']] = player['playerid']
+
+        for player in self.tracking_data['events'][0]['visitor']['players']:
+            ids[player['firstname'] + ' ' + player['lastname']] = player['playerid']
+
         self.player_ids = ids
-        return self
+
+    def _get_jersey_numbers(self):
+        """
+        Helper function for returning player jersey numbers for all players in game.
+        This is useful for identifying players by their jersey numbers.
+        """
+
+        home_jersey_numbers = {}
+        for player in self.tracking_data['events'][0]['home']['players']:
+            home_jersey_numbers[player['firstname'] + ' ' + player['lastname']] = player['jersey']
+
+        away_jersey_numbers = {}
+        for player in self.tracking_data['events'][0]['visitor']['players']:
+            away_jersey_numbers[player['firstname'] + ' ' + player['lastname']] = player['jersey']
+
+        self.jersey_numbers = {'home': home_jersey_numbers, 'away': away_jersey_numbers}
+
 
     def _format_tracking_data(self):
         """
@@ -187,8 +204,8 @@ class Game(object):
         ax = plt.gca()
 
         # Create the court lines
-        outer = Rectangle((0, -50), width=94, height=50, color=color,
-                          zorder=zorder, fill=False, lw=lw)
+        outer = Rectangle((0, -50), width=94, height=50, color="#f0e6d2",
+                          zorder=zorder, fill=True, lw=lw)
         l_hoop = Circle((5.35, -25), radius=.75, lw=lw, fill=False,
                         color=color, zorder=zorder)
         r_hoop = Circle((88.65, -25), radius=.75, lw=lw, fill=False,
@@ -442,7 +459,7 @@ class Game(object):
         current_moment = self.moments.iloc[frame_number]
         game_time = int(np.round(current_moment['game_time']))
         universe_time = int(current_moment['universe_time'])
-        x_pos, y_pos, colors, sizes, edges = [], [], [], [], []
+        x_pos, y_pos, colors, sizes, edges, ids = [], [], [], [], [], []
         # Get player positions
         for player in current_moment.positions:
             x_pos.append(player[2])
@@ -459,7 +476,10 @@ class Game(object):
                 edges.append(5)
             else:
                 edges.append(0.5)
-        # Unfortunately, the plot is below the y axis,
+
+            ids.append(player[1])
+
+        # Unfortunately, the plot is below the y-axis,
         # so the y positions need to be corrected
         y_pos = np.array(y_pos) - 50
         shot_clock = current_moment.shot_clock
@@ -470,7 +490,7 @@ class Game(object):
         game_clock = "%02d:%02d" % (game_min, game_sec)
         quarter = current_moment.quarter
         return (game_time, x_pos, y_pos, colors, sizes, quarter,
-                shot_clock, game_clock, edges, universe_time)
+                shot_clock, game_clock, edges, universe_time, ids)
 
     def plot_frame(self, frame_number, highlight_player=None,
                    commentary=True, show_spacing=False,
@@ -503,7 +523,7 @@ class Game(object):
         """
         (game_time, x_pos, y_pos, colors, sizes,
          quarter, shot_clock, game_clock, edges,
-         universe_time) = self._get_moment_details(frame_number,
+         universe_time, ids) = self._get_moment_details(frame_number,
                                                    highlight_player=highlight_player)
         (commentary_script, score) = self._get_commentary(game_time)
         fig = plt.figure()
@@ -511,27 +531,67 @@ class Game(object):
         frame = plt.gca()
         frame.axes.get_xaxis().set_ticks([])
         frame.axes.get_yaxis().set_ticks([])
-        plt.scatter(x_pos, y_pos, c=colors, s=sizes, alpha=0.85,
-                    linewidths=edges)
+
+        # Plot players and ball and embed the jersey number of the player after getting the name of the player and
+        # then matching it with the jersey number
+
+        for x, y, color, size, edge, player_id in zip(x_pos, y_pos, colors, sizes, edges, ids):
+            if player_id in self.player_ids.values():
+                player_name = [k for k, v in self.player_ids.items() if v == player_id][0]
+                jersey_number = self.jersey_numbers['home'].get(player_name, None)
+                if jersey_number is None:
+                    jersey_number = self.jersey_numbers['away'].get(player_name, None)
+                if jersey_number is not None:
+                    plt.annotate(jersey_number, xy=(x, y), fontsize=12, ha='center', va='center', color='white')
+
+            plt.scatter(x, y, s=size, c=color, edgecolors='black', linewidth=edge)
+
         plt.xlim(-5, 100)
         plt.ylim(-55, 5)
         sns.set_style('dark')
-        #plt.show()
-        print('Frame number:', frame_number)
+
         if commentary:
             plt.figtext(0.23, -.6, commentary_script, size=20)
         plt.figtext(0.43, 0.125, shot_clock, size=18)
         plt.figtext(0.5, 0.125, 'Q' + str(quarter), size=18)
         plt.figtext(0.57, 0.125, str(game_clock), size=18)
-        plt.figtext(0.43, .85,
+        plt.figtext(0.37, .83,
                     self.away_team + "  " + score + "  " + self.home_team,
                     size=18)
         if highlight_player:
             plt.figtext(0.17, 0.85, highlight_player, size=18)
+
         # Add team color indicators to top of frame
-        plt.scatter([30, 67], [2.5, 2.5], s=100,
+        plt.scatter([25, 75], [2.5, 2.5], s=100,
                     c=[self.team_colors[self.away_id],
                        self.team_colors[self.home_id]])
+
+        # Side panel for player names and jersey numbers
+        side_ax_home = fig.add_axes([-0.01, 0.1, 0.1, 0.8], frameon=False)
+        side_ax_home.axes.get_xaxis().set_ticks([])
+        side_ax_home.axes.get_yaxis().set_ticks([])
+        side_ax_home.set_xlim(0, 1)
+
+        side_ax_away = fig.add_axes([0.95, 0.1, 0.1, 0.8], frameon=False)
+        side_ax_away.axes.get_xaxis().set_ticks([])
+        side_ax_away.axes.get_yaxis().set_ticks([])
+        side_ax_away.set_xlim(0, 1)
+
+        # Add only the players that are on the court
+        on_court_players_home = [k for k, v in self.player_ids.items() if v in ids and k in self.jersey_numbers['away']]
+        on_court_players_away = [k for k, v in self.player_ids.items() if v in ids and k in self.jersey_numbers['home']]
+
+        side_ax_home.set_ylim(0, len(on_court_players_home) * 0.05 + 0.1)  # Adjusted ylim
+        side_ax_away.set_ylim(0, len(on_court_players_away) * 0.05 + 0.1)  # Adjusted ylim
+
+        for i, player in enumerate(on_court_players_home):
+            side_ax_home.text(0.4, 0.6 - i * 0.05, player + " - " + str(self.jersey_numbers['away'][player]), size=8,
+                              ha='center', va='center', transform=side_ax_home.transAxes)
+
+        for i, player in enumerate(on_court_players_away):
+            side_ax_away.text(0.4, 0.6 - i * 0.05, player + " - " + str(self.jersey_numbers['home'][player]), size=8,
+                              ha='center', va='center', transform=side_ax_away.transAxes)
+
         if show_spacing:
             # Show convex hull on frame
             xy_pos = np.column_stack((np.array(x_pos), np.array(y_pos)))
