@@ -115,7 +115,6 @@ class get_data:
         file_path = f'{path}/{self.game_id}.csv'
         self.pbp = pd.read_csv(file_path)
         print('Read the events data for this match.')
-        print(self.pbp)
 
     def data_frame_tracking(self):
         events = pd.DataFrame(self.tracking_data['events'])
@@ -133,7 +132,6 @@ class get_data:
                                (720 - moments.quarter_time)
         moments.drop(['index', 'unknown'], axis=1, inplace=True)
         self.moments = moments
-        print(self.moments)
 
 """
 if __name__ == '__main__':
