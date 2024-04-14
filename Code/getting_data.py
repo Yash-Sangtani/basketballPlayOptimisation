@@ -131,10 +131,11 @@ class get_data:
         moments['game_time'] = (moments.quarter - 1) * 720 + \
                                (720 - moments.quarter_time)
         moments.drop(['index', 'unknown'], axis=1, inplace=True)
+
         self.moments = moments
 
-"""
+
 if __name__ == '__main__':
     data = get_data('12.02.2015', 'WAS', 'LAL')
     #12.02.2015.LAL.at.WAS.7z
-"""
+
