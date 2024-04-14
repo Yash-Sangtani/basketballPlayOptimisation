@@ -57,12 +57,21 @@ class PassTracking:
         self.moments.dropna(subset=required_columns, inplace=True)
         self.moments['pass_successful'] = np.where(self.moments['ball_team'] != self.moments['prev_2_ball_team'], 0, 1)
         
+        condition1 = self.moments['ball_man'].ne(self.moments['prev_ball_man'])
+        condition2 = self.moments['ball_man'].ne(self.moments['prev_2_ball_man'])
+
+        # Detecting pass attempts using bitwise OR on boolean arrays
+        self.pass_attempt = self.moments.loc[condition1 | condition2]
+
+        #self.pass_attempt = self.moments.loc[self.moments['ball_man'] != 
+        #                                    self.moments['prev_ball_man'] | self.moments['prev_2_ball_man']]
+
 
 if __name__ == '__main__':
     passes = PassTracking('12.30.2015', 'SAC', 'PHI')
     passes.track_passes()
-    passes.moments.to_csv('../Tracking_data/passes/passes.csv')
+    passes.pass_attempt.to_csv('../Tracking_data/passes/passes.csv')
     print("CSV file saved and ready to use.")
-
+    print(passes.pass_attempt)
     
     #12.30.2015.PHI.at.SAC.7z
