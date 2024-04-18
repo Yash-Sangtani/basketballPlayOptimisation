@@ -633,7 +633,7 @@ class Game(object):
         It determines if the game is in a set offense/defense.
         It basically returns True if a normal play is being run,
         and False if the game is in transition, out of bounds,
-        free throw, etc.  It is useful for analyzing plays that teams
+        free throw, etc. It is useful for analyzing plays that teams
         run, and discarding all extranous times from the game.
         """
         # Get relevant moment details
@@ -736,7 +736,8 @@ class Game(object):
             frame (int): frame number of game time
         """
         test_time = game_time
-        while True:
+        frame = 0
+        while True and test_time > 0:
             if test_time in self.moments.game_time.round():
                 frames = self.moments[self.moments.game_time.round() ==
                                       test_time].index.values
@@ -781,9 +782,9 @@ class Game(object):
         # the function returns None
         else:
             return None
-        # Add two seconds to game time to let the players settle into position
+        # Subtract 2 seconds to get the start of the shot
         start_frame = self.get_frame(round(self.moments.iloc[test_frame].game_time + 2))
-        return (start_frame, end_frame)
+        return start_frame, end_frame
 
     def watch_play(self, game_time, length, highlight_player=None,
                    commentary=True, show_spacing=None):
