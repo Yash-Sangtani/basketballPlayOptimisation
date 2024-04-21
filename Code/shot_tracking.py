@@ -5,6 +5,7 @@ Scripts for extracting features from the NBA tracking data
 import os
 import pickle
 import numpy as np
+import pandas as pd
 from simulate import Game
 
 
@@ -29,7 +30,7 @@ def extract_games():
     return games
 
 
-def get_features(date, home_team, away_team, write_file=False,
+def get_features(date, home_team, away_team, write_file=True,
                  write_score=False, write_game=False):
     """
     Calculates features for each frame in game
@@ -84,10 +85,10 @@ def get_features(date, home_team, away_team, write_file=False,
         shot_frame = game.get_play_frames(event_num=frame)[1]
 
         # Get the moment details as per the frame
-        details = game._get_moment_details(frame)
+        details = game._get_moment_details(shot_frame)
 
         # Shot clock time
-        shot_clock = details[6]
+        shot_clock = int(details[6])
         # Quarter of the game
         quarter = details[5]
 
@@ -140,7 +141,7 @@ def get_features(date, home_team, away_team, write_file=False,
                                             shooter_defender_vector)))
 
         # Get the velocity of the shooter
-        previous_details = game._get_moment_details(frame - 1)
+        previous_details = game._get_moment_details(shot_frame - 1)
 
         delta_x = np.array(details[1]) - np.array(previous_details[1])
         delta_y = np.array(details[2]) - np.array(previous_details[2])
@@ -148,7 +149,7 @@ def get_features(date, home_team, away_team, write_file=False,
         shooter_velocity = np.linalg.norm([delta_x[shooter_index], delta_y[shooter_index]]) / delta_time
 
         # Get the velocity of the closest defender
-        closest_defender_index = details[10].index(closest_defender_coord)
+        closest_defender_index = details[1].index(closest_defender_coord[0])
         defender_velocity = np.linalg.norm(
             [delta_x[closest_defender_index], delta_y[closest_defender_index]]) / delta_time
 
@@ -156,13 +157,23 @@ def get_features(date, home_team, away_team, write_file=False,
         num_close_defenders = sum([1 for defender in defender_coords
                                    if np.linalg.norm(np.array(shooter_coords) - np.array(defender)) < 4])
 
-        # Get the score margin of the game
+        # Get the score margin of t`he game
         score_margin = game.pbp[game.pbp['EVENTNUM'] == frame]['SCOREMARGIN'].values[0]
 
-        if score_margin == 'TIE':
+        # if the score margin is float nan and not found, go back to the previous frames until a score margin is found
+
+        temp = frame
+        if score_margin == pd.isna(score_margin):
+            while score_margin == pd.isna(score_margin) and temp > 0:
+                temp -= 1
+                score_margin = game.pbp[game.pbp['EVENTNUM'] == temp]['SCOREMARGIN'].values[0]
+
+        if score_margin == 'TIE' or pd.isna(score_margin):
             score_margin = 0
         elif offensive_team == away_team_ids:
-            score_margin = -score_margin
+            score_margin = -int(score_margin)
+        else:
+            score_margin = int(score_margin)
 
         # Get the make -> 1 if the shot was made, 0 if missed
         make = 1 if game.pbp[game.pbp['EVENTNUM'] == frame]['EVENTMSGTYPE'].values[0] == 1 else 0
@@ -176,6 +187,17 @@ def get_features(date, home_team, away_team, write_file=False,
     if write_file:
         with open('./data/features/{filename}'.format(filename=filename), 'wb') as myfile:
             pickle.dump(features, myfile)
+
+    # Also write the features in csv format
+    with open('./data/features/{filename}.csv'.format(filename=filename), 'w') as myfile:
+        myfile.write('dist, x, y, make, shot_angle, shooter_velocity, closest_defender, closest_defender_angle, '
+                     'closest_defender_velocity, num_close_defenders, shot_clock, score_margin, quarter\n')
+        for feature in features:
+            myfile.write(','.join([str(f) for f in feature]) + '\n')
+
+    print("Features extracted for {filename}".format(filename=filename))
+
+    return features
 
 
 def write_features(gamelist):

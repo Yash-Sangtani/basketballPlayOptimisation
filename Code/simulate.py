@@ -775,15 +775,15 @@ class Game(object):
         putative_start_time = int(self.pbp.iloc[play_index - 1].game_time)
         putative_start_frame = self.get_frame(putative_start_time)
         end_frame = self.get_frame(end_time)
-        for test_frame in range(putative_start_frame, end_frame):
-            if self.get_offensive_team(test_frame) == target_team:
-                break
-        # If the previous loop never found an offensive play,
-        # the function returns None
-        else:
-            return None
+        # for test_frame in range(putative_start_frame, end_frame):
+        #     if self.get_offensive_team(test_frame) == target_team:
+        #         break
+        # # If the previous loop never found an offensive play,
+        # # the function returns None
+        # else:
+        #     return None
         # Subtract 2 seconds to get the start of the shot
-        start_frame = self.get_frame(round(self.moments.iloc[test_frame].game_time + 2))
+        start_frame = self.get_frame(round(self.moments.iloc[putative_start_frame].game_time - 2))
         return start_frame, end_frame
 
     def watch_play(self, game_time, length, highlight_player=None,
