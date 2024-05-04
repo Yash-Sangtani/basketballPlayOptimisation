@@ -21,6 +21,7 @@ if not os.path.exists('temp'):
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
+
 class Game(object):
     """
     Class for basketball game.
@@ -89,8 +90,8 @@ class Game(object):
         self.away_id = self.tracking_data['events'][0]['visitor']['teamid']
         self.home_id = self.tracking_data['events'][0]['home']['teamid']
         self.team_colors = {-1: "orange",
-                             self.away_id: "blue",
-                             self.home_id: "red"}
+                            self.away_id: "blue",
+                            self.home_id: "red"}
         self.home_team = (self.tracking_data['events'][0]['home']
         ['abbreviation'])
         self.away_team = (self.tracking_data['events'][0]['visitor']
@@ -172,7 +173,6 @@ class Game(object):
             away_jersey_numbers[player['firstname'] + ' ' + player['lastname']] = player['jersey']
 
         self.jersey_numbers = {'home': home_jersey_numbers, 'away': away_jersey_numbers}
-
 
     def _format_tracking_data(self):
         """
@@ -524,7 +524,7 @@ class Game(object):
         (game_time, x_pos, y_pos, colors, sizes,
          quarter, shot_clock, game_clock, edges,
          universe_time, ids) = self._get_moment_details(frame_number,
-                                                   highlight_player=highlight_player)
+                                                        highlight_player=highlight_player)
         (commentary_script, score) = self._get_commentary(game_time)
         fig = plt.figure()
         self._draw_court()
@@ -840,4 +840,3 @@ class Game(object):
                 os.remove('./temp/{file}'.format(file=file))
 
         return self
-
