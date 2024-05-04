@@ -21,6 +21,7 @@ if not os.path.exists('temp'):
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
+
 class Game(object):
     """
     Class for basketball game.
@@ -89,8 +90,8 @@ class Game(object):
         self.away_id = self.tracking_data['events'][0]['visitor']['teamid']
         self.home_id = self.tracking_data['events'][0]['home']['teamid']
         self.team_colors = {-1: "orange",
-                             self.away_id: "blue",
-                             self.home_id: "red"}
+                            self.away_id: "blue",
+                            self.home_id: "red"}
         self.home_team = (self.tracking_data['events'][0]['home']
         ['abbreviation'])
         self.away_team = (self.tracking_data['events'][0]['visitor']
@@ -172,7 +173,6 @@ class Game(object):
             away_jersey_numbers[player['firstname'] + ' ' + player['lastname']] = player['jersey']
 
         self.jersey_numbers = {'home': home_jersey_numbers, 'away': away_jersey_numbers}
-
 
     def _format_tracking_data(self):
         """
@@ -524,7 +524,7 @@ class Game(object):
         (game_time, x_pos, y_pos, colors, sizes,
          quarter, shot_clock, game_clock, edges,
          universe_time, ids) = self._get_moment_details(frame_number,
-                                                   highlight_player=highlight_player)
+                                                        highlight_player=highlight_player)
         (commentary_script, score) = self._get_commentary(game_time)
         fig = plt.figure()
         self._draw_court()
@@ -633,7 +633,7 @@ class Game(object):
         It determines if the game is in a set offense/defense.
         It basically returns True if a normal play is being run,
         and False if the game is in transition, out of bounds,
-        free throw, etc.  It is useful for analyzing plays that teams
+        free throw, etc. It is useful for analyzing plays that teams
         run, and discarding all extranous times from the game.
         """
         # Get relevant moment details
@@ -736,7 +736,8 @@ class Game(object):
             frame (int): frame number of game time
         """
         test_time = game_time
-        while True:
+        frame = 0
+        while True and test_time > 0:
             if test_time in self.moments.game_time.round():
                 frames = self.moments[self.moments.game_time.round() ==
                                       test_time].index.values
@@ -774,16 +775,16 @@ class Game(object):
         putative_start_time = int(self.pbp.iloc[play_index - 1].game_time)
         putative_start_frame = self.get_frame(putative_start_time)
         end_frame = self.get_frame(end_time)
-        for test_frame in range(putative_start_frame, end_frame):
-            if self.get_offensive_team(test_frame) == target_team:
-                break
-        # If the previous loop never found an offensive play,
-        # the function returns None
-        else:
-            return None
-        # Add two seconds to game time to let the players settle into position
-        start_frame = self.get_frame(round(self.moments.iloc[test_frame].game_time + 2))
-        return (start_frame, end_frame)
+        # for test_frame in range(putative_start_frame, end_frame):
+        #     if self.get_offensive_team(test_frame) == target_team:
+        #         break
+        # # If the previous loop never found an offensive play,
+        # # the function returns None
+        # else:
+        #     return None
+        # Subtract 2 seconds to get the start of the shot
+        start_frame = self.get_frame(round(self.moments.iloc[putative_start_frame].game_time - 2))
+        return start_frame, end_frame
 
     def watch_play(self, game_time, length, highlight_player=None,
                    commentary=True, show_spacing=None):
@@ -839,4 +840,3 @@ class Game(object):
                 os.remove('./temp/{file}'.format(file=file))
 
         return self
-
