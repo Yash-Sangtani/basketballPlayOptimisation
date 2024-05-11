@@ -11,6 +11,7 @@ import numpy as np
 import seaborn as sns
 from scipy.spatial import ConvexHull
 from matplotlib.patches import Rectangle, Circle, Arc, Polygon
+from shot_tracking_plot import extract_shot_probability
 
 matplotlib.use('TkAgg')
 
@@ -79,6 +80,7 @@ class Game(object):
         self.tracking_data = None
         self.game_id = None
         self.pbp = None
+        self.epv = None
         self.moments = None
         self.player_ids = None
         self.jersey_numbers = None
@@ -398,14 +400,15 @@ class Game(object):
                     count += 1
                 score = str(row['SCORE'])
 
-        commentary_script = """{commentary[0]}
-                                \n{commentary[1]}
-                                \n{commentary[2]}
-                                \n{commentary[3]}
-                                \n{commentary[4]}
-                                \n{commentary[5]}
-                                """.format(commentary=commentary)
-        return (commentary_script, score)
+        # Remove nan values from commentary
+        for i in range(commentary_length):
+            if commentary[i] == 'nan' or commentary[i] == '{self.home_team}: nan'.format(self=self) or commentary[i] == '{self.away_team}: nan'.format(self=self):
+                commentary[i] = ''
+
+        # Join the commentary into multiple lines if it isn't ''
+        commentary_script = '\n'.join([comment for comment in commentary if comment != ''])
+
+        return commentary_script, score
 
     def _get_player_actions(self, player_name, action):
         """
@@ -493,7 +496,7 @@ class Game(object):
                 shot_clock, game_clock, edges, universe_time, ids)
 
     def plot_frame(self, frame_number, highlight_player=None,
-                   commentary=True, show_spacing=False,
+                   commentary=True, show_spacing=False, show_epv=False,
                    plot_spacing=False, pipe=None):
         """
         Creates an individual the frame of game.
@@ -514,17 +517,22 @@ class Game(object):
             pipe (subprocesses.Popen): Popen object with open pipe
                 to send image to if False, image is written to disk
                 instead of sent to pipe
+            show_epv (bool): if True, add epv values of each offensive player
+                on top of their coordinate
 
         Returns: an instance of self, and outputs .png file of frame
             If pipe, ARGB values are sent to pipe object instead of
             writing to disk.
-
-        TODO be able to call this method by game time instead of frame_number
         """
         (game_time, x_pos, y_pos, colors, sizes,
          quarter, shot_clock, game_clock, edges,
          universe_time, ids) = self._get_moment_details(frame_number,
                                                         highlight_player=highlight_player)
+
+        if show_epv:
+            self.epv = extract_shot_probability(self, self._get_moment_details(frame_number),
+                                                self._get_moment_details(frame_number - 1))
+
         (commentary_script, score) = self._get_commentary(game_time)
         fig = plt.figure()
         self._draw_court()
@@ -537,6 +545,12 @@ class Game(object):
 
         for x, y, color, size, edge, player_id in zip(x_pos, y_pos, colors, sizes, edges, ids):
             if player_id in self.player_ids.values():
+                # Get the player epv value for the player id using self.epv dictionary, if it isn't empty
+                # Plot on top of the player's coordinate
+                if show_epv and self.epv:
+                    if player_id in self.epv.keys():
+                        epv = self.epv[player_id]
+                        plt.annotate(f'{epv:.2f}', xy=(x+3, y+3), fontsize=10, ha='center', va='top', color='black')
                 player_name = [k for k, v in self.player_ids.items() if v == player_id][0]
                 jersey_number = self.jersey_numbers['home'].get(player_name, None)
                 if jersey_number is None:
@@ -551,7 +565,7 @@ class Game(object):
         sns.set_style('dark')
 
         if commentary:
-            plt.figtext(0.23, -.6, commentary_script, size=20)
+            plt.figtext(0.15, -.20, commentary_script, size=20)
         plt.figtext(0.43, 0.125, shot_clock, size=18)
         plt.figtext(0.5, 0.125, 'Q' + str(quarter), size=18)
         plt.figtext(0.57, 0.125, str(game_clock), size=18)
@@ -602,8 +616,8 @@ class Game(object):
             hull = ConvexHull(points)
             hull_points = points[hull.vertices, :]
             polygon = Polygon(hull_points, alpha=0.3, color='gray')
-            ax = plt.gca()
-            ax.add_patch(polygon)
+            # ax = plt.gca()
+            frame.add_patch(polygon)
         if pipe:
             # Write ARGB values to pipe
             fig.canvas.draw()
@@ -787,7 +801,7 @@ class Game(object):
         return start_frame, end_frame
 
     def watch_play(self, game_time, length, highlight_player=None,
-                   commentary=True, show_spacing=None):
+                   commentary=True, show_spacing=None, show_epv=False):
         """
         DEPRECIATED.  See animate_play() for similar (fastere) method
 
@@ -825,8 +839,8 @@ class Game(object):
         # Make video of each frame
         for frame in range(starting_frame, ending_frame):
             self.plot_frame(frame, highlight_player=highlight_player,
-                            commentary=commentary, show_spacing=show_spacing)
-        command = ('ffmpeg -framerate 20 -start_number {starting_frame} '
+                            commentary=commentary, show_spacing=show_spacing, show_epv=show_epv)
+        command = ('ffmpeg -framerate 10 -start_number {starting_frame} '
                    '-i %d.png -c:v libx264 -r 30 -pix_fmt yuv420p -vf '
                    '"scale=trunc(iw/2)*2:trunc(ih/2)*2" {starting_frame}'
                    '.mp4').format(starting_frame=starting_frame)
@@ -840,3 +854,4 @@ class Game(object):
                 os.remove('./temp/{file}'.format(file=file))
 
         return self
+
