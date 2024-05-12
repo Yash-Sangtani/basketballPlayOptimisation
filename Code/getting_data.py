@@ -106,7 +106,7 @@ class get_data:
 
         # Clean up the JSON file after loading
         os.remove(json_file_path)
-        print('Extraction Done!')
+        #print('Extraction Done!')
 
 
 
@@ -114,7 +114,7 @@ class get_data:
         path = '../Tracking_data/events'
         file_path = f'{path}/{self.game_id}.csv'
         self.pbp = pd.read_csv(file_path)
-        print('Read the events data for this match.')
+        #print('Read the events data for this match.')
 
     def data_frame_tracking(self):
         events = pd.DataFrame(self.tracking_data['events'])

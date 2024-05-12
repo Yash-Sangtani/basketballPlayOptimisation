@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from getting_data import get_data
 from tqdm import tqdm
 
@@ -35,6 +34,7 @@ class PassTracking:
         self.pbp = data.pbp
 
 
+
     def _dist_calculate(self, x1, y1, x2, y2):
         return ((x1 - x2)**2 + (y1 - y2)**2)**0.5
 
@@ -42,70 +42,75 @@ class PassTracking:
         ball_x, ball_y = positions[0][2], positions[0][3]
         ball_man_id = None
         min_distance = float('inf')
-
+        player_distance = None
         for player in positions[1:]:  # Skip the first entry as it's the ball
             distance = self._dist_calculate(ball_x, ball_y, player[2], player[3])
             if distance < min_distance:
                 min_distance = distance
                 player_id_with_ball = (player[0], player[1])  # team_id, player_id
+                player_distance = [player[2], player[3]]
 
-        return player_id_with_ball[1], player_id_with_ball[0]    
+        return player_id_with_ball[1], player_id_with_ball[0], player_distance[0], player_distance[1]
 
     def track_passes(self):
 
-        """While the shot cloc is less than twenty four, and the player id changes, pass successful. 
-        If the shot clock resets to twenty-four and it wasn't a shot attempt, shot made, foul, violation, etc. (will get to knoow this from the event_num), 
-        PASS UNSUCCESSFUL.
+        possessions = self.moments.loc[(self.moments['shot_clock']>=23.60) |
+                                       ((self.moments['shot_clock'] < 23.0) & (self.moments['shot_clock'].shift(-1) == 24.0))]
         
 
-        # Modify getting_data.py to have event_num and event_type.
-        #Write the code to use the logic written above.
-        #Run the code.
-        Calculate the features.
-        Run the model.
-        """
-        #possessions = self.moments.loc[((self.moments['shot_clock']==24.0) & (self.moments['shot_clock'] - self.moments['shot_clock'].shift(1) != 0.0)) |
-        #                               ((self.moments['shot_clock'] < 24.0) & (self.moments['shot_clock'].shift(-1) == 24.0))]
-        possessions = self.moments.loc[(self.moments['shot_clock']>=23.96) | 
-                                       ((self.moments['shot_clock'] < 23.0) & (self.moments['shot_clock'].shift(-1) == 24.0))]
-        #possessions = possessions.loc[((possessions['shot_clock']==24.0) &(possessions['shot_clock'].shift(-1) != 24.0))|
-        #                              (possessions['shot_clock']!=24.0)]
-        
         self.pbp['Qmin'] = (self.pbp['PCTIMESTRING'].str.split(':', expand=True)[0]).astype(int)
         self.pbp['Qsec'] = (self.pbp['PCTIMESTRING'].str.split(':', expand=True)[1]).astype(int)
         self.pbp['Qtime'] = (self.pbp['Qmin'].astype(int) * 60 + self.pbp['Qsec'].astype(int))
-        
-        #print(self.pbp)
-        index = possessions.index.tolist()
+        index = self.moments.index.tolist()
         self.moments['pass_successful'] = None
         self.moments['passer'] = None
         self.moments['target'] = None
         self.moments['team_passer'] = None
         self.moments['team_target'] = None
-        for i in tqdm(range(len(index)-1)):
-            start=index[i]
-            end=index[i+1]
-            if self.moments.iloc[index[i], 3] != 24.0 and self.moments.iloc[index[i+1], 3] >=24.0:
-                continue
+        self.moments['backcourt'] = 0
 
-            self.ball_man, self.ball_team = self.find_ball_man(self.moments.iloc[i, 4])
-            #count = 0 #If the ball_man man different for two time then pass is successful
-            for j in range(start, end+1, 1):
+
+        index = possessions.index.tolist()
+
+        for i in range(len(index)-1):
+            start = index[i]
+            end = index[i+1]
+            if self.moments.iloc[start, 3] <= 23.0 or self.moments.iloc[end, 3] >=23.0:
+                continue
+            basket = None
+            self.ball_man, self.ball_team, target_x, target_y = self.find_ball_man(self.moments.iloc[end-5, 4])
+            if (self._dist_calculate(target_x, target_y, self.basket1[0], self.basket1[1]) 
+                < self._dist_calculate(target_x, target_y, self.basket2[0], self.basket2[1])):
+                basket = self.basket1
+            else:
+                basket = self.basket2
+            
+            self.ball_man, self.ball_team, _, _ = self.find_ball_man(self.moments.iloc[start, 4]) #start or i?
+
+            for j in range(start, end+1, 2):
                 #Find the ball man before this loop.
                 #Check if the ball_man changes inside this loop.
                 #If yes, pass succcessful.
-                temp, temp2 = self.find_ball_man(self.moments.iloc[j, 4])  #player_id, team_id
+                temp, temp2, target_x, target_y = self.find_ball_man(self.moments.iloc[j, 4])  #player_id, team_id
                 #print(temp)
                 if temp != self.ball_man and temp2 == self.ball_team:
-                    #if count == 0:
-                    #    count = count + 1
-                    #else:
-                    #count = 0
                     self.moments.iloc[j, 6] = 1 #Successful
                     self.moments.iloc[j, 7] = self.ball_man #passer
                     self.moments.iloc[j, 8] = temp #target
                     self.moments.iloc[j, 9] = self.ball_team #team
                     self.moments.iloc[j, 10] = temp2 #team
+                    if (self._dist_calculate(target_x, target_y, self.basket1[0], self.basket1[1]) 
+                        < self._dist_calculate(target_x, target_y, self.basket2[0], self.basket2[1])):
+                        if basket == self.basket1:
+                            self.moments.iloc[j, 11] = 1 #BACKCOURT PASS
+                        else:
+                            self.moments.iloc[j, 11] = 0
+                    else:
+                        if basket == self.basket2:
+                            self.moments.iloc[j, 11] = 1
+                        else:
+                            self.moments.iloc[j, 11] = 0
+
                     self.ball_man=temp
 
             #Converting quater_time to minute and seconds to compare to PCTIMESTRING in pbp data.
@@ -113,21 +118,21 @@ class PassTracking:
             time_end_min = int(time_end_str.split('.')[0])
             time_end_sec = time_end_min % 60  
             time_end_min = time_end_min // 60
-            time_end_sec = [time_end_sec-1, time_end_sec, time_end_sec+1]
+            #time_end_sec = [time_end_sec-1, time_end_sec, time_end_sec+1]
             quater = self.moments.iloc[end, 0]
 
-            match = self.pbp.loc[(self.pbp['Qmin'] == time_end_min) & (self.pbp['Qsec'].isin(time_end_sec)) & (self.pbp['PERIOD'] == quater)]
-            
-            match = match.head(1)
+            #match = self.pbp.loc[(self.pbp['Qmin'] == time_end_min) & (self.pbp['Qsec']==time_end_sec) & (self.pbp['PERIOD'] == quater) & (self.pbp['EVENTMSGTYPE'] == 5)]
 
-            #Checking for BAD PASSES.
-            avoid = [1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 18]
-            if match['EVENTMSGTYPE'].isin(avoid).any():
-                continue
-            else:
+            bad_passes = self.pbp.loc[self.pbp['EVENTMSGTYPE'] == 5]
+
+            bad_passes = bad_passes.loc[bad_passes['PERIOD'] == quater]
+
+            bad_passes = bad_passes.loc[bad_passes['Qmin'] == time_end_min]
+            bad_passes = bad_passes.loc[(bad_passes['Qsec'] <= time_end_sec+20) & (bad_passes['Qsec'] >= time_end_sec-20)]
+            if len(bad_passes) == 1:
                 self.moments.iloc[end, 6] = 0 #unsuccessful pass.
                 self.moments.iloc[j, 7] = self.ball_man #passer
-                self.moments.iloc[j, 8] = None 
+                self.moments.iloc[j, 8] = None
                 self.moments.iloc[j, 9] = self.ball_team #team
                 self.moments.iloc[j, 10] = None
 
@@ -155,7 +160,7 @@ class features:
     def __init__(self, date, home, away):
         self.passes = PassTracking('12.12.2015', 'MIL', 'GSW')
         self.passes.track_passes()
-        self.features = pd.DataFrame(self.passes.pass_attempt['shot_clock'])
+        self.features = pd.DataFrame(self.passes.pass_attempt[['shot_clock', 'pass_successful', 'backcourt']])
         
     def calculate_angle(self, x1, y1, x2, y2, x3, y3):
         vector1 = [x2 - x1, y2 - y1]
@@ -165,7 +170,7 @@ class features:
         dot_product = np.dot(unit_vector1, unit_vector2)
         clipped_dot_product = np.clip(dot_product, -1.0, 1.0)
         angle = np.arccos(clipped_dot_product)
-        return np.degrees(angle)
+        return angle
 
     def features_extraction(self):
         #dist
@@ -277,21 +282,51 @@ class features:
 
 
 
+def process_features(date_away_home):
+    date, away, home = date_away_home
+    try:
+        feature = features(date, home, away)
+        feature.features_extraction()
+        feature.features.to_pickle(f'./../Tracking_data/pass_features/{date}.{away}.{home}.pkl')
+    except Exception as e:
+        print(f"Error processing {date}.{home}.{away}: {e}")
 
 
 
 
+def main():
 
-if __name__ == '__main__':
     """passes = PassTracking('12.12.2015', 'MIL', 'GSW')
+    # passes.moments.to_csv('../Tracking_data/passes/moments.csv')
     passes.track_passes()
-    passes.moments.to_csv('../Tracking_data/passes/moments.csv')
     passes.pbp.to_csv('../Tracking_data/passes/pbp.csv')
     passes.pass_attempt.to_csv('../Tracking_data/passes/passes.csv')
-    passes.features_extraction()"""
-
+    """
+    dates = []
+    aways = []
+    homes = []
+    with open('./allgames.txt', 'r') as file:
+        lines = file.readlines()
+        for line in lines:
+            components = line.split('.')
+            dates.append('.'.join(components[:3]))
+            aways.append(components[3])
+            homes.append(components[5].split()[0])
+    
+    """
+    for date, away, home in tqdm(zip(dates, aways, homes), total=len(dates)):
+        try:
+            feature = features(date, home, away)
+            feature.features_extraction()
+            feature.features.to_pickle(f'./../Tracking_data/pass_features/{date+"."+away+"."+home}.pkl')
+        except:
+            print(date, home, away, sep='.', end='.7z')
+    """
     feature = features('12.12.2015', 'MIL', 'GSW')
     feature.features_extraction()
     feature.features.to_csv('./../Tracking_data/passes/features.csv')
-    #print("CSV file saved and ready to use.")
+    print("CSV file saved and ready to use.")
     #12.30.2015.PHI.at.SAC.7z
+        
+if __name__ == '__main__':
+    main()
