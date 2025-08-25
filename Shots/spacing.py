@@ -86,12 +86,12 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
                away_offense_areas, away_defense_areas)
     # Write spacing data to disk
     if write_file:
-        pickle.dump(results, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Code/data/spacing/' +
+        pickle.dump(results, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Shots/data/spacing/' +
                                   filename, "wb"))
     # Write game scores to disk
     if write_score:
         score = game.pbp['SCORE'].iloc[len(game.pbp) - 1]
-        pickle.dump(score, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Code/data/score/' +
+        pickle.dump(score, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Shots/data/score/' +
                                 filename, "wb"))
 
     return (home_offense_areas, home_defense_areas,
@@ -107,7 +107,7 @@ def write_spacing(gamelist):
             get_spacing_statistics(game[0], game[1], game[2],
                                    write_file=True, write_score=True)
         except:
-            with open('errorlog.txt', 'a') as myfile:
+            with open('errorlog1.txt', 'a') as myfile:
                 myfile.write("{game} Could not extract spacing data\n"
                              .format(game=game))
 
