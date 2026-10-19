@@ -1,5 +1,5 @@
 """
-Scripts for extracting shot_features1 from the NBA tracking data
+Scripts for extracting shot_features from the NBA tracking data
 """
 
 import os
@@ -80,6 +80,8 @@ def get_features(date, home_team, away_team, write_file=True,
             shot_clock : time left on the shot clock -> float,
             score_margin : score margin of the game -> int,
             quarter : quarter of the game -> int,
+            minutes : minutes remaining in the quarter -> int,
+            seconds : seconds remaining in the quarter -> int,
             make : 1 if the shot was made, 0 if missed -> int
             )
     """
@@ -91,13 +93,24 @@ def get_features(date, home_team, away_team, write_file=True,
                  'closest_defender_defensive_rating', 'closest_defender_dist', 'closest_defender_angle',
                  'closest_defender_velocity', 'num_close_defenders', 'shot_clock', 'score_margin', 'quarter', 'make']]
 
+    zone = [['x', 'y', 'dist', 'SHOT_ZONE_BASIC' , 'SHOT_ZONE_AREA', 'SHOT_ZONE_RANGE']]
+
     filename = ("{date}-{away_team}-"
                 "{home_team}.pkl").format(date=date,
                                           away_team=away_team,
                                           home_team=home_team)
+
     # Do not recalculate spacing data if already saved to disk
-    if filename in os.listdir('data/shot_features'):
+    if filename in os.listdir('./sfeatures'):
         return
+
+    # Write the features to a csv file
+    # if write_file:
+    #     with open("shot_features/{filename}".format(filename=filename), 'w') as myfile:
+    #         myfile.write("event, shooter, shooter_name, shooter_offensive_rating, dist, x, y, shot_angle, "
+    #                      "shooter_velocity, fg_percentage_zone, closest_defender, closest_defender_name, "
+    #                      "closest_defender_defensive_rating, closest_defender_dist, closest_defender_angle, "
+    #                      "closest_defender_velocity, num_close_defenders, shot_clock, score_margin, quarter, make\n")
 
     # Get all shot frames where EVENTMSGTYPE == 1 (shot-made) or 2 (shot missed)
     shot_frames = sorted(game.pbp[game.pbp['EVENTMSGTYPE'] == 1]['EVENTNUM'].tolist() +
@@ -110,11 +123,6 @@ def get_features(date, home_team, away_team, write_file=True,
 
         # Get the moment details as per the frame
         details = game._get_moment_details(shot_frame)
-
-        # Shot clock time
-        shot_clock = int(details[6])
-        # Quarter of the game
-        quarter = details[5]
 
         temp = shot_frame
         # format pctimestring to be in the format of "%02d:%02d" of the play by play
@@ -138,6 +146,9 @@ def get_features(date, home_team, away_team, write_file=True,
         shooter = game.pbp[game.pbp['EVENTNUM'] == frame]['PLAYER1_ID'].values[0]
         shooter_name = game.pbp[game.pbp['EVENTNUM'] == frame]['PLAYER1_NAME'].values[0]
 
+        filtered_zones = zones[(zones['PLAYER_NAME'] == shooter_name) & (zones['GAME_ID'] == int(game.game_id)) & (
+                zones['GAME_EVENT_ID'] == frame)]
+
         while shooter not in details[10]:
             temp -= 1
             details = game._get_moment_details(temp)
@@ -145,8 +156,43 @@ def get_features(date, home_team, away_team, write_file=True,
                 break
         shooter_index = details[10].index(shooter)
 
+        # Shot clock time
+        shot_clock = int(details[6])
+        # Get the quarter and minute of the game
+        if not filtered_zones['PERIOD'].empty:
+            quarter = filtered_zones['PERIOD'].values[0]
+            minutes = filtered_zones['MINUTES_REMAINING'].values[0]
+            seconds = filtered_zones['SECONDS_REMAINING'].values[0]
+        else:
+            quarter = details[5]
+            minutes = int(pbp_time.split(':')[0])
+            seconds = int(pbp_time.split(':')[1])
+
         # Get the x and y coordinates of the shooter
         shooter_coords = [details[1][shooter_index], details[2][shooter_index]]
+
+        # how many points was the shot attempted for
+        three_pt_zones = ['Above the Break 3', 'Backcourt', 'Left Corner 3', 'Right Corner 3']
+        two_pt_zones = ['In The Paint (Non-RA)', 'Mid-Range', 'Restricted Area']
+
+        # Default shot attempted is set from 2 points zone
+        points_attempted = 2
+        if not filtered_zones['SHOT_ZONE_BASIC'].empty:
+            if filtered_zones['SHOT_ZONE_BASIC'].values[0] in three_pt_zones:
+                points_attempted = 3
+            elif filtered_zones['SHOT_ZONE_BASIC'].values[0] in two_pt_zones:
+                points_attempted = 2
+
+        # Determine the basket coordinates based on which the basket is closer to the shooter [5.35, 25] or [88.65, 25]
+        basket = [5.35, -25] if shooter_coords[0] < 47 else [88.65, -25]
+
+        # Get the distance of the shot
+        # if not filtered_zones['SHOT_DISTANCE'].empty:
+        #     dist = filtered_zones['SHOT_DISTANCE'].values[0]
+        # else:
+        #     dist = np.linalg.norm(np.array(shooter_coords) - np.array(basket))
+
+        dist = np.linalg.norm(np.array(shooter_coords) - np.array(basket))
 
         home_team_ids = [i for i in details[10] if i in list(game.player_ids.values())[:13]]
         away_team_ids = [i for i in details[10] if i in list(game.player_ids.values())[13:]]
@@ -177,14 +223,8 @@ def get_features(date, home_team, away_team, write_file=True,
         # Extract the name of the closest defender from the player_ids dictionary and get the value
         closest_defender_name = list({i for i in game.player_ids if game.player_ids[i] == closest_defender})[0]
 
-        # Determine the basket coordinates based on which basket is closer to the shooter [5.35, 25] or [88.65, 25]
-        basket = [5.35, 25] if shooter_coords[0] < 47 else [88.65, 25]
-
-        # Get the distance of the shot
-        dist = np.linalg.norm(np.array(shooter_coords) - np.array(basket))
-
         # Calculate the angle between the shooter, the basket, and the center of the court
-        court_center = [47, 25]  # Assuming this is the center of the court along the x-axis
+        court_center = [47, -25]  # Assuming this is the center of the court along the x-axis
         shooter_basket_vector = np.array(basket) - np.array(shooter_coords)
         center_basket_vector = np.array(basket) - np.array(court_center)
         shot_angle = np.arccos(np.dot(shooter_basket_vector, center_basket_vector) /
@@ -215,9 +255,6 @@ def get_features(date, home_team, away_team, write_file=True,
                 ratings[ratings['PLAYER_NAME'] == closest_defender_name]['DEFENSIVE_RATING'].iloc[0]
         else:
             defender_defensive_rating = ratings['DEFENSIVE_RATING'].mean()
-
-        filtered_zones = zones[(zones['PLAYER_NAME'] == shooter_name) & (zones['GAME_ID'] == int(game.game_id)) & (
-                zones['GAME_EVENT_ID'] == frame)][['SHOT_ZONE_BASIC', 'SHOT_ZONE_AREA', 'SHOT_ZONE_RANGE']]
 
         if not filtered_zones['SHOT_ZONE_BASIC'].empty:
             fg_percentage_zone = fg_percentage[(fg_percentage['PLAYER_NAME'] == shooter_name) &
@@ -276,45 +313,47 @@ def get_features(date, home_team, away_team, write_file=True,
         delta_time = details[9] - previous_details[9]
         shooter_velocity = np.linalg.norm([delta_x[shooter_index], delta_y[shooter_index]]) / delta_time
 
-        # Get the velocity of the closest defender
-        if closest_defender_coord[0] not in details[1]:
-            # Probably the defender was subbed out after the play due to a
-            # timeout on a missed or made shot, so going back
-            details = game._get_moment_details(shot_frame)
-
         defender_velocity = np.linalg.norm(
             [delta_x[closest_defender_index], delta_y[closest_defender_index]]) / delta_time
+
 
         # Append the shot_features1 to the list
         features.append((frame, shooter, shooter_name, shooter_offensive_rating, dist, shooter_coords[0],
                          shooter_coords[1], shot_angle, shooter_velocity, fg_percentage_zone, closest_defender,
                          closest_defender_name, defender_defensive_rating, closest_defender_dist, shot_defender_angle,
-                         defender_velocity, num_close_defenders, shot_clock, score_margin, quarter, make))
+                         defender_velocity, num_close_defenders, shot_clock, score_margin, quarter, minutes, seconds,
+                         points_attempted, make))
+
+        if not filtered_zones['SHOT_ZONE_BASIC'].empty:
+            zone.append((shooter_coords[0], shooter_coords[1], dist, filtered_zones['SHOT_ZONE_BASIC'].values[0],
+                        filtered_zones['SHOT_ZONE_AREA'].values[0], filtered_zones['SHOT_ZONE_RANGE'].values[0]))
 
         # Write shot_features as csv file
         # if write_file:
-        #     with open("data/shot_features/{filename}".format(filename=filename), 'a') as myfile:
-        #         myfile.write("{event}, {shooter}, {shooter_name}, {shooter_rating}, {dist}, {x}, {y}, {shot_angle}, "
-        #                      "{shooter_velocity},{fg_percentage_zone}, "
-        #                      "{closest_defender}, {closest_defender_name}, {defender_rating}, {closest_defender_dist}, "
-        #                      "{closest_defender_angle}, {closest_defender_velocity},"
-        #                      "{num_close_defenders}, {shot_clock}, {score_margin}, {quarter}, {make}\n"
-        #                      .format(event=frame, shooter=shooter, shooter_name=shooter_name,
-        #                              shooter_rating=shooter_offensive_rating,
-        #                              dist=dist, x=shooter_coords[0], y=shooter_coords[1],
-        #                              shot_angle=shot_angle, shooter_velocity=shooter_velocity,
-        #                              fg_percentage_zone=fg_percentage_zone,
+        #     with open("features/{filename}".format(filename=filename), 'a') as myfile:
+        #         myfile.write("{frame}, {basket}, {shooter}, {shooter_name}, {shooter_offensive_rating}, {dist}, {x}, {y}, "
+        #                      "{shot_angle}, {shooter_velocity}, {fg_percentage_zone}, {closest_defender}, "
+        #                      "{closest_defender_name}, {defender_defensive_rating}, {closest_defender_dist}, "
+        #                      "{shot_defender_angle}, {defender_velocity}, {num_close_defenders}, {shot_clock}, "
+        #                      "{score_margin}, {quarter}, {minutes}, {seconds}, {points_attempted}, {make}\n"
+        #                      .format(frame=frame, basket=basket, shooter=shooter, shooter_name=shooter_name,
+        #                              shooter_offensive_rating=shooter_offensive_rating, dist=dist,
+        #                              x=shooter_coords[0], y=shooter_coords[1], shot_angle=shot_angle,
+        #                              shooter_velocity=shooter_velocity, fg_percentage_zone=fg_percentage_zone,
         #                              closest_defender=closest_defender, closest_defender_name=closest_defender_name,
-        #                              defender_rating=defender_defensive_rating,
-        #                              closest_defender_dist=closest_defender_dist,
-        #                              closest_defender_angle=shot_defender_angle,
-        #                              closest_defender_velocity=defender_velocity,
-        #                              num_close_defenders=num_close_defenders,
-        #                              shot_clock=shot_clock, score_margin=score_margin, quarter=quarter, make=make))
+        #                              defender_defensive_rating=defender_defensive_rating,
+        #                              closest_defender_dist=closest_defender_dist, shot_defender_angle=shot_defender_angle,
+        #                              defender_velocity=defender_velocity, num_close_defenders=num_close_defenders,
+        #                              shot_clock=shot_clock, score_margin=score_margin, quarter=quarter, minutes=minutes,
+        #                              seconds=seconds, points_attempted=points_attempted, make=make))
+
 
     # Write the features to a pickle file
-    with open("data/shot_features/{filename}".format(filename=filename), 'wb') as myfile:
+    with open("./sfeatures/{filename}".format(filename=filename), 'wb') as myfile:
         pickle.dump(features, myfile)
+
+    with open("./zones/{filename}".format(filename=filename), 'wb') as myfile:
+        pickle.dump(zone, myfile)
 
     print("Features extracted for {filename}".format(filename=filename))
 
@@ -327,11 +366,12 @@ def write_features(gamelist):
     """
 
     # Write all the labels in a text file
-    with open('data/shot_features/labels.txt', 'w') as myfile:
-        myfile.write("event, shooter, shooter_name, shooter_offensive_rating, dist, x, y, shot_angle, "
+    with open('labels.txt', 'w') as myfile:
+        myfile.write("frame, shooter, shooter_name, shooter_offensive_rating, dist, x, y, shot_angle, "
                      "shooter_velocity, fg_percentage_zone, closest_defender, closest_defender_name, "
                      "closest_defender_defensive_rating, closest_defender_dist, closest_defender_angle, "
-                     "closest_defender_velocity, num_close_defenders, shot_clock, score_margin, quarter, make\n")
+                     "closest_defender_velocity, num_close_defenders, shot_clock, score_margin, quarter, 'minutes', "
+                     "'seconds', 'points_attempted', make\n")
 
     for game in gamelist:
         try:
