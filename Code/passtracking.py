@@ -169,24 +169,24 @@ class PassTracking:
         return segs
 
     def _compute_attack_baskets(self, segs):
-        """Which basket each team attacks in each quarter, voted from where the
-        team holds the ball near a rim. Teams swap baskets at halftime."""
+        """Which basket each team attacks in each quarter. Teams always attack
+        opposite baskets and swap at halftime, so both teams' evidence (where each
+        holds the ball near a rim) is scored jointly per quarter: a team's own
+        vote can be wrong (long backcourt possessions near its own rim), but the
+        home-minus-away margin is robust."""
         fr = self._fr
-        votes = defaultdict(lambda: [0, 0])
+        margin = defaultdict(int)   #(team, quarter) -> frames near basket1 - frames near basket2
         for s in segs:
             b = fr['ball'][s['start']:s['end'] + 1]
-            k = (s['team'], int(fr['quarter'][s['start']]))
-            votes[k][0] += int((np.hypot(b[:, 0] - self.basket1[0], b[:, 1] - self.basket1[1]) <= self.ATTACK_VOTE_DIST).sum())
-            votes[k][1] += int((np.hypot(b[:, 0] - self.basket2[0], b[:, 1] - self.basket2[1]) <= self.ATTACK_VOTE_DIST).sum())
+            near1 = np.hypot(b[:, 0] - self.basket1[0], b[:, 1] - self.basket1[1]) <= self.ATTACK_VOTE_DIST
+            near2 = np.hypot(b[:, 0] - self.basket2[0], b[:, 1] - self.basket2[1]) <= self.ATTACK_VOTE_DIST
+            margin[(s['team'], int(fr['quarter'][s['start']]))] += int(near1.sum()) - int(near2.sum())
         attack = {}
-        for k, (v1, v2) in votes.items():
-            if v1 != v2:
-                attack[k] = 1 if v1 > v2 else 2
-        for (t, q), side in list(attack.items()):
-            #A team with no votes in a quarter attacks the opposite of the other team.
-            for t2 in (self.home_id, self.away_id):
-                if t2 != t and (t2, q) not in attack:
-                    attack[(t2, q)] = 2 if side == 1 else 1
+        for q in sorted({q for (_, q) in margin}):
+            score = margin.get((self.home_id, q), 0) - margin.get((self.away_id, q), 0)
+            if score != 0:
+                attack[(self.home_id, q)] = 1 if score > 0 else 2
+                attack[(self.away_id, q)] = 2 if score > 0 else 1
         self.attack_basket = attack
 
     def _attack_basket(self, team, quarter):
@@ -248,6 +248,26 @@ class PassTracking:
                     outcome=outcome, flight_s=float(fr['ut'][end] - fr['ut'][r]),
                     basket_x=None if basket is None else basket[0])
 
+    def _flight_ok(self, r, end, check_oob=True):
+        """The one filter both classes must pass, so failures can't be told apart
+        from completions by how the flight was selected: long enough, ball travels
+        far enough, (completions only: stays in bounds) and is not a shot arc."""
+        fr = self._fr
+        if not (self.MIN_FLIGHT_S <= fr['ut'][end] - fr['ut'][r] <= self.MAX_FLIGHT_S):
+            return False
+        if np.hypot(*(fr['ball'][end, :2] - fr['ball'][r, :2])) < self.MIN_DISP:
+            return False
+        flight = np.arange(r + 1, end)
+        if len(flight) == 0:
+            return False
+        if check_oob and self._out_of_bounds(flight[self.OOB_SKIP_FRAMES:]).any():
+            return False
+        z = fr['ball'][flight, 2]
+        zmax = np.nanmax(z) if np.isfinite(z).any() else 0.0
+        end_xy = fr['ball'][end, :2]
+        near_rim = min(np.hypot(*(end_xy - self.basket1)), np.hypot(*(end_xy - self.basket2))) <= self.SHOT_RIM_DIST
+        return not (zmax >= self.SHOT_Z and near_rim)   #A shot arc, not a pass.
+
     def _completed_passes(self, segs):
         fr = self._fr
         rows = []
@@ -255,21 +275,8 @@ class PassTracking:
             if a['block'] != b['block'] or a['team'] != b['team'] or a['holder'] == b['holder']:
                 continue
             r, recv = a['end'], b['start']
-            flight_s = fr['ut'][recv] - fr['ut'][r]
-            if not (self.MIN_FLIGHT_S <= flight_s <= self.MAX_FLIGHT_S):
+            if not self._flight_ok(r, recv):
                 continue
-            if np.hypot(*(fr['ball'][recv, :2] - fr['ball'][r, :2])) < self.MIN_DISP:
-                continue
-            flight = np.arange(r + 1, recv)
-            if len(flight) == 0:
-                continue
-            if self._out_of_bounds(flight[self.OOB_SKIP_FRAMES:]).any():
-                continue
-            zmax = np.nanmax(fr['ball'][flight, 2]) if np.isfinite(fr['ball'][flight, 2]).any() else 0.0
-            end_xy = fr['ball'][recv, :2]
-            near_rim = min(np.hypot(*(end_xy - self.basket1)), np.hypot(*(end_xy - self.basket2))) <= self.SHOT_RIM_DIST
-            if zmax >= self.SHOT_Z and near_rim:
-                continue   #A shot (and offensive rebound), not a pass.
             rows.append(self._row(r, recv, recv, a['holder'], a['team'], b['holder'], True, 'completed'))
         return rows
 
@@ -334,6 +341,9 @@ class PassTracking:
                 unmatched[sorted(reasons)[0]] += 1
                 continue
             _, _, i, end, outcome = min(scored)
+            if not self._flight_ok(segs[i]['end'], end, check_oob=False):
+                unmatched['not_a_pass_flight'] += 1   #Same filter as completions.
+                continue
             used.add(i)
             rows.append(self._row(segs[i]['end'], end, end, committer, segs[i]['team'], None, False, outcome))
         self.failure_report = dict(pbp_events=len(events), matched=len(rows), unmatched=dict(unmatched))

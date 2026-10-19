@@ -18,16 +18,20 @@ tracking-data-loading logic (`Code/getting_data.py`'s `get_data` vs
 
 **Bottom line:** on 2026-10-19 the passing pipeline (`Code/passtracking.py`) was
 rewritten after an audit showed the old dataset did not measure pass
-difficulty. It now yields ~490 completed passes and ~13 real failed passes per
-game with no label leak, validated on two games (`12.12.2015 GSW@MIL`,
-`12.30.2015 PHI@SAC`). The signal is still weak (25 failures pooled) and the
-pipeline has **not** been run on more than those two games, and `pass_model.py`
-has not been run at all (TensorFlow is not installed in the local Python 3.12
-env; pandas/sklearn/scipy are; `7z` is at `/opt/homebrew/bin/7z`).
+difficulty. It now yields ~450–550 completed passes and ~6–13 failed passes
+per game (matched from 7–16 pbp bad-pass turnovers) with no label leak. It has
+been run on four games only: `12.12.2015 GSW@MIL` and `12.30.2015 PHI@SAC` (used
+while building, so in-sample) and `11.20.2015 SAS@NOP` and `01.12.2016 HOU@MEM`
+(held out, not retuned). The failure signal is still weak (17–21 failures per
+pair of games) and `pass_model.py` has not been run at all (TensorFlow is not
+installed in the local Python 3.12 env; pandas/sklearn/scipy are; `7z` is at
+`/opt/homebrew/bin/7z`).
 
-**Git state:** all on `main`, nothing pushed. `origin/dhruv` was merged
-(`bf64535`); `.gitignore` added (`519d73a`); the passtracking rewrite is the
-commit after that. Run `git log --oneline -6` to see where things are.
+**Git state:** all on `main`, nothing pushed (~10 commits ahead of
+`origin/main`). `.gitignore` + status docs (`519d73a`), `origin/dhruv` merged
+(`bf64535`), then the passtracking rewrite, its docs, and a follow-up (symmetric
+flight filter + attack-direction fix + held-out validation). Run
+`git log --oneline -8` to see where things are.
 
 **How detection works now** (constants are class attributes of `PassTracking`):
 ball-holder state machine over every frame (shot clock is a feature, not a
@@ -42,40 +46,60 @@ flight ends in an interception, out of bounds, or a fumbled teammate touch. Lost
 balls/travels/fouls are NOT passes. All features are computed at the **release**
 frame (last frame of the passer's hold). A failed pass has no receiver, so its
 `target` is `target_heading` = the teammate the ball is heading towards in its
-first 8 frames (≤ 50° off); the same rule on completions agrees with the true
-receiver 75–78% of the time. `features(..., target_mode='actual'|'heading')`:
+first 8 frames (0.32 s) after release (≤ 50° off), so the *target choice* peeks
+slightly past release even though every geometric feature is measured at release;
+the same rule on completions agrees with the true receiver 75–85% of the time. `features(..., target_mode='actual'|'heading')`:
 'actual' (default) uses the true receiver for completions, 'heading' uses the
 heading rule for both classes (leak-safest; gives the same leakage picture).
 `backcourt` = passer released in his own half (|x − attacked basket x| > 47 ft;
 attacked basket voted per team/quarter and swaps at halftime), defined for both
 classes, so `pass_model.py`'s `backcourt == 0` filter now keeps frontcourt passes.
 
-**Validation (`Code/validate_passes.py`, measured, two games; before = old code):**
+**Validation (`Code/validate_passes.py`, measured; "before" = the old code on
+12.12.2015). Games 1–2 shaped the design (thresholds, fumble rule, filters), so
+only the held-out column is a fair out-of-sample look; it was run once, with
+no tuning, after fixing the one bug it exposed (see below).**
 
-| check | before | now |
-|---|---|---|
-| assist recall (pbp assist = passer→scorer) | 3/53 (6%) | 39/54 (72%), 31/46 (67%) |
-| minority-team share of passes inside a shot-clock window | 28% | 8% / 13% (1 alternating window per game) |
-| pbp bad-pass turnovers matched | 7/34 rows had the right passer | 13/15 and 14/16 |
-| max single-feature AUC for `pass_successful` | 1.00 (sentinel 25.57) | 0.79 (no class-constant feature) |
-| leave-one-game-out failure ROC / PR (baseline 0.025) | 0.99 | 0.72–0.75 / 0.06–0.08 |
+| check | before | in-sample (2 games) | held-out (2 games) |
+|---|---|---|---|
+| assist recall (pbp assist = passer→scorer) | 3/53 (6%) | 72%, 67% | 81%, 81% |
+| minority-team share of passes in a shot-clock window | 28% | 8%, 13% | 7%, 7% |
+| windows with repeated team flips (detection error) | not measured | 1, 1 | 3, 5 |
+| pbp bad-pass turnovers matched | 7/34 rows had the right passer | 9/15, 13/16 | 6/7, 11/16 |
+| heading rule vs true receiver on completions | – | 78%, 75% | 80%, 85% |
+| failures in feature rows (rate) | 34 (10%) | 21 (2.1%) | 17 (1.7%) |
+| max single-feature AUC for `pass_successful` | 1.00 (sentinel 25.57) | 0.79 | 0.79 |
+| leave-one-game-out failure ROC, logistic / gboost | 0.99 | 0.72–0.76 / 0.57 | 0.72 / 0.49 |
 
 Reproduce: `cd Code && ./run_logged.sh validate python3 validate_passes.py
-12.12.2015.GSW.at.MIL 12.30.2015.PHI.at.SAC` (add `--target-mode heading` to
-compare). Read the output; thresholds are not tuned to hit a number.
+11.20.2015.SAS.at.NOP 01.12.2016.HOU.at.MEM` (add `--target-mode heading` to
+compare). Read the output; thresholds are not tuned to hit a number. Assist
+recall is 67–81%, below the 85% the audit proposed; the misses are mostly
+hand-offs/lobs excluded by design or an assister with no ≥ 4-frame hold.
+
+Bugs found by this process: (1) the held-out game exposed both teams being
+assigned the same basket in Q4 (one team's own vote was wrong) — attack
+direction is now scored jointly per quarter (home margin − away margin) so teams
+always attack opposite baskets; (2) failed passes were selected by a looser
+filter than completions (2 under 5 ft of ball travel, 3 lobs ending near a rim),
+which would let the classes differ by construction — both classes now go through
+the same `_flight_ok` filter, which cost ~5 of 27 matched failures.
 
 **Known limits of the current dataset:**
-1. ~2.5% of passes are failures (25 in 995 rows, 2 games) → hundreds of games
-   needed; accuracy/F1 are meaningless, use PR-AUC grouped by game.
+1. ~2% of passes are failures (21 in 992 rows and 17 in 1010 rows, per pair of
+   games) → hundreds of games needed; accuracy/F1 are meaningless, use PR-AUC grouped by game.
 2. Assist misses are by design (hand-offs < 5 ft, lobs/alley-oops caught above
    8 ft) or the assister has no ≥ 4-frame hold. 2 of ~15 pbp bad passes per game
    have no committer hold in tracking and cannot be matched.
 3. Residual mixed-team windows are almost all a single clean switch (possession
    changes the shot-clock check can't see), not flipping.
-4. Thresholds were tuned on game 1 (`HOLD_REL_SPEED`) and on both games
-   (`HEAD_MAX_ANGLE`, `HEAD_FRAMES`); only the final validation run is a fair
-   look at game 2. Failures are 23 frontcourt vs 2 backcourt (3.4% vs 0.6%):
-   possibly real, watch it on more games.
+4. Thresholds were tuned on games 1–2 (`HOLD_REL_SPEED` on game 1;
+   `HEAD_MAX_ANGLE`/`HEAD_FRAMES` on both). Failures skew frontcourt (about 2–3%
+   of frontcourt passes vs 0.7% of backcourt passes): possibly real, watch it
+   on more games. The gradient-boosted model is at chance leave-one-game-out
+   (0.49–0.57) and the logistic one reaches ~0.72 on only 17–21 failures, so
+   treat any model result as noise until there are hundreds of games.
+   `HOU@MEM` still had 5 shot-clock windows with repeated team flips.
 5. Features changed meaning: all at release; lane distance is to the pass
    *segment*; angles are interior angles at the vertex (small = defender in the
    passing direction); new `lane_n_def_5ft`, `passer_speed`, `target_speed`;
