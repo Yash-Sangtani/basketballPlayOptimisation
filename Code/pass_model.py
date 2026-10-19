@@ -24,7 +24,7 @@ NOO = ['01.01.2016.TOR.CHA.7z','01.01.2016.WAS.ORL.7z','01.02.2016.BOS.BKN.7z','
        '01.02.2016.MIN.MIL.7z','01.02.2016.CLE.ORL.7z']
 def load_data(lists):
     X, y = [], []
-    directory = './../Tracking_data/pass_features'
+    directory = './../Tracking_Data/pass_features'
     for date, away, home in tqdm(list(lists)):  # Convert to list for tqdm
         file_name = f'{date}.{away}.{home}.pkl'
         if file_name in NOO:

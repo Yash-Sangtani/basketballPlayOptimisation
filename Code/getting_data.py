@@ -111,7 +111,7 @@ class get_data:
 
 
     def _get_play_by_play_data(self):
-        path = '../Tracking_data/events'
+        path = '../Tracking_Data/events'
         file_path = f'{path}/{self.game_id}.csv'
         self.pbp = pd.read_csv(file_path)
         #print('Read the events data for this match.')
