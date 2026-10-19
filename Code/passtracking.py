@@ -1,11 +1,15 @@
+import argparse
+import hashlib
 import os
-import sys
+import signal
+import time
 import traceback
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from getting_data import get_data
+import getting_data
+from getting_data import get_data, DatalessFileError, DATA_DIR
 from tqdm import tqdm
 
 """
@@ -474,21 +478,79 @@ class features:
         self.meta = pd.DataFrame(metas, index=valid_index)
 
 
+def _code_version():
+    """Short hash of the code that makes the pickles. A resumed batch only trusts
+    results made by the same version, so editing the detector can't leave stale
+    pickles that a resume silently reuses."""
+    h = hashlib.sha1()
+    for path in (__file__, getting_data.__file__):
+        with open(path, 'rb') as f:
+            h.update(f.read())
+    return h.hexdigest()[:8]
+
+
+CODE_VERSION = _code_version()
+OUT_DIR = './../Tracking_Data/pass_features'
+STATUS_FILE = f'{OUT_DIR}/_status.csv'
+STATUS_COLUMNS = ['game', 'status', 'rows', 'seconds', 'version', 'error']
+STOP = {'now': False}   #Set by SIGINT/SIGTERM while a batch is running.
+
+
+def read_status():
+    """Per-game status log written by the batch: game, status, rows, seconds, error.
+    status: ok; failed (a real error, skipped on resume unless --retry-failed);
+    unavailable (the file is an iCloud placeholder, retried automatically on resume)."""
+    if not os.path.exists(STATUS_FILE):
+        return pd.DataFrame(columns=STATUS_COLUMNS)
+    status = pd.read_csv(STATUS_FILE, keep_default_na=False)
+    for col in STATUS_COLUMNS:
+        if col not in status:
+            status[col] = ''   #Log written by an older version of this file.
+    return status
+
+
+def log_status(game, status, rows, seconds, error=''):
+    if os.path.exists(STATUS_FILE):
+        with open(STATUS_FILE) as f:
+            if f.readline().strip() != ','.join(STATUS_COLUMNS):
+                os.replace(STATUS_FILE, STATUS_FILE + '.old')   #Keep an old-format log, start a fresh one.
+    new_file = not os.path.exists(STATUS_FILE)
+    with open(STATUS_FILE, 'a') as f:
+        if new_file:
+            f.write(','.join(STATUS_COLUMNS) + '\n')
+        f.write(f'{game},{status},{rows},{seconds:.1f},{CODE_VERSION},"{str(error)[:150].replace(chr(34), chr(39))}"\n')
+        f.flush()
+        os.fsync(f.fileno())
+
+
 def process_features(date_away_home):
+    """Extract one game's features into pass_features/<date>.<away>.<home>.pkl.
+    Written to a temp file and renamed, so a run killed mid-write never leaves a
+    half-written pickle that a resume would mistake for a finished game."""
     date, away, home = date_away_home
-    out_dir = './../Tracking_Data/pass_features'
+    game = f'{date}.{away}.at.{home}'
+    out = f'{OUT_DIR}/{date}.{away}.{home}.pkl'
+    start = time.perf_counter()
     try:
-        os.makedirs(out_dir, exist_ok=True)
+        os.makedirs(OUT_DIR, exist_ok=True)
         feature = features(date, home, away)
         feature.features_extraction()
-        feature.features.to_pickle(f'{out_dir}/{date}.{away}.{home}.pkl')
-    except Exception:
-        print(f"Error processing {date}.{away}.at.{home}:")
+        feature.features.to_pickle(out + '.tmp')
+        os.replace(out + '.tmp', out)
+        log_status(game, 'ok', len(feature.features), time.perf_counter() - start)
+    except DatalessFileError as e:
+        print(f"{game}: not downloaded (iCloud placeholder), will retry on the next run")
+        log_status(game, 'unavailable', 0, time.perf_counter() - start, str(e)[:100])
+    except Exception as e:
+        if STOP['now']:
+            return   #Interrupted by the stop signal, not a real failure: leave it to be retried.
+        print(f"Error processing {game}:")
         traceback.print_exc()
+        log_status(game, 'failed', 0, time.perf_counter() - start, f'{type(e).__name__}: {e}')
 
 
 def read_game_list(path):
-    """Parse lines like 'MM.DD.YYYY.AWAY.at.HOME.7z' into (date, away, home)."""
+    """Parse lines like 'MM.DD.YYYY.AWAY.at.HOME[.7z]' into (date, away, home)."""
     games = []
     with open(path, 'r') as file:
         for line in file:
@@ -499,15 +561,77 @@ def read_game_list(path):
     return games
 
 
+def run_batch(game_list, retry_failed=False, allow_stale=False):
+    """Resumable batch. Re-running the same command skips games already done with
+    THIS version of the code, and games that failed before unless retry_failed
+    (allow_stale also accepts pickles made by older code). Ctrl-C or SIGTERM
+    (e.g. a shutdown) stops cleanly after the current game's write, never during it."""
+    games = read_game_list(game_list)
+    status = read_status()
+    latest = status.drop_duplicates('game', keep='last')
+    failed = set(latest.loc[latest['status'] == 'failed', 'game'])
+    unavailable = set(latest.loc[latest['status'] == 'unavailable', 'game'])
+    current = set(latest.loc[(latest['status'] == 'ok') & (latest['version'] == CODE_VERSION), 'game'])
+    todo, stale = [], 0
+    for date, away, home in games:
+        game = f'{date}.{away}.at.{home}'
+        if os.path.exists(f'{OUT_DIR}/{date}.{away}.{home}.pkl'):
+            if game in current or allow_stale:
+                continue
+            stale += 1   #A pickle from older code (or an unknown version): redo it.
+        if game in failed and not retry_failed:
+            continue
+        todo.append((date, away, home))
+    print(f"{len(games)} games listed: {len(games) - len(todo)} already done or known-bad, {len(todo)} to run"
+          f" (known-bad skipped; use --retry-failed to retry them). Code version {CODE_VERSION}"
+          + (f"; {stale} pickle(s) are from older code and will be redone (--allow-stale keeps them)" if stale else ""),
+          flush=True)
+    if unavailable:
+        print(f"{len(unavailable & {f'{d}.{a}.at.{h}' for d, a, h in todo})} of those were not downloaded last time"
+              f" and will be tried again.", flush=True)
+
+    STOP['now'] = False
+
+    def request_stop(signum, frame):
+        STOP['now'] = True
+        print(f"\nStop requested (signal {signum}); finishing the current game, then exiting."
+              f" Re-run the same command to resume.", flush=True)
+
+    old_int = signal.signal(signal.SIGINT, request_stop)
+    old_term = signal.signal(signal.SIGTERM, request_stop)
+    done = 0
+    try:
+        for game in tqdm(todo, desc="Games"):
+            if STOP['now']:
+                break
+            process_features(game)
+            done += 1
+    finally:
+        signal.signal(signal.SIGINT, old_int)
+        signal.signal(signal.SIGTERM, old_term)
+    #Latest status per game (a game can appear several times if it was retried).
+    last = read_status().drop_duplicates('game', keep='last')['status'].value_counts().to_dict()
+    print(f"Ran {done}/{len(todo)} this time. Totals in {STATUS_FILE}: {last.get('ok', 0)} ok, "
+          f"{last.get('failed', 0)} failed, {last.get('unavailable', 0)} not downloaded."
+          + (" Stopped early: re-run the same command to resume." if STOP['now'] else ""), flush=True)
+
+
 def main():
     """`python passtracking.py` runs the single sample game and writes
     Tracking_Data/passes/features_v2.csv (the committed features.csv is the
-    pre-fix original and is left alone). `python passtracking.py <list file>`
-    batch-processes the games in <list file> (e.g. ../Shots/allgames.txt) into
-    Tracking_Data/pass_features/*.pkl."""
-    if len(sys.argv) > 1:
-        for game in tqdm(read_game_list(sys.argv[1]), desc="Games"):
-            process_features(game)
+    pre-fix original and is left alone).
+
+    `python passtracking.py <list file> [--retry-failed]` batch-processes the games
+    in <list file> (e.g. ../Shots/allgames.txt) into Tracking_Data/pass_features/*.pkl.
+    It is resumable: stop it any time and run the same command again."""
+    parser = argparse.ArgumentParser(description=main.__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('game_list', nargs='?', help='file with one MM.DD.YYYY.AWAY.at.HOME[.7z] per line')
+    parser.add_argument('--retry-failed', action='store_true', help='retry games the status log marks as failed')
+    parser.add_argument('--allow-stale', action='store_true',
+                        help='keep pickles made by an older version of the code instead of redoing them')
+    args = parser.parse_args()
+    if args.game_list:
+        run_batch(args.game_list, args.retry_failed, args.allow_stale)
         return
     feature = features('12.12.2015', 'MIL', 'GSW')
     feature.features_extraction()

@@ -23,9 +23,11 @@ per game (matched from 7–16 pbp bad-pass turnovers) with no label leak. It has
 been run on four games only: `12.12.2015 GSW@MIL` and `12.30.2015 PHI@SAC` (used
 while building, so in-sample) and `11.20.2015 SAS@NOP` and `01.12.2016 HOU@MEM`
 (held out, not retuned). The failure signal is still weak (17–21 failures per
-pair of games) and `pass_model.py` has not been run at all (TensorFlow is not
-installed in the local Python 3.12 env; pandas/sklearn/scipy are; `7z` is at
-`/opt/homebrew/bin/7z`).
+pair of games). `pass_model.py` has been run once, on 7 games (2026-10-19): the
+plumbing works but the model learns nothing (see "Model run" below). Python env:
+use the git-ignored venv `.venv/bin/python` (Python 3.12, TensorFlow 2.21, Keras
+3.15, pandas, sklearn); the miniforge base python has no TensorFlow. `7z` is at
+`/opt/homebrew/bin/7z`. Machine: Apple M1, 8 cores, **8 GB RAM**, ~14 GB free disk.
 
 **Git state:** all on `main`, nothing pushed (~10 commits ahead of
 `origin/main`). `.gitignore` + status docs (`519d73a`), `origin/dhruv` merged
@@ -107,18 +109,36 @@ the same `_flight_ok` filter, which cost ~5 of 27 matched failures.
    ≤ 24 s remain (other NaNs remain, ~5%). `features.meta` (game_id, quarter,
    game_time, frame, passer, target, outcome, target_inferred) is NOT saved by
    `process_features` — save it next to the pickles before pooled training.
-6. `Code/pass_model.py` itself is unchanged apart from the path-case fix: random
-   row split (should be GroupKFold by game), accuracy/F1 on imbalanced data,
-   printed weights, the `NOO` skip list can never match (`.7z` names vs `.pkl`),
-   and it reads `./allgames.txt` at import (not in `Code/`; use
-   `../Shots/allgames.txt`).
+6. `Code/pass_model.py`: the model and evaluation are unchanged (random row
+   split — should be GroupKFold by game; accuracy/F1 on imbalanced data; printed
+   weights; the `NOO` skip list can never match, `.7z` names vs `.pkl`). It now
+   takes the game list as argv[1] (default `../Shots/allgames.txt`), skips games
+   with no pickle, prints `[time]` stamps, and checkpoints each epoch.
+
+**!! iCloud placeholders (M, 2026-10-19): most of the raw data is NOT on this Mac.**
+The repo sits in `~/Documents`, which syncs to iCloud with storage optimisation:
+589 of 636 archives and 577 of 632 events CSVs are "dataless" placeholders (check
+with `ls -lO`; flag `dataless`). Reading one does not error — it silently returns
+**0 bytes**, so 7z says "Can not open the file as archive" and Python reads
+nothing. Only 47 archives are physically present. `get_data` now detects this and
+raises `DatalessFileError`; the batch logs such games as `unavailable` (retried on
+the next run, unlike `failed`). Two ways to get the data: (a) the real bytes are in
+git (archives are tracked), so `Code/fetch_games.sh <list> [dest]` copies games
+out of git history into `~/.cache/basketballPlayOptimisation/Tracking_Data`
+(outside iCloud, works offline, 1 s for 7 games) — then `export
+TRACKING_DATA_DIR=<dest>` before running; (b) download them in Finder
+("Download Now" / "Keep Downloaded") or `brctl download` — about 3.8 GB, and the
+Mac has ~14 GB free so macOS may evict them again. Cleanest long-term fix: move
+the repo out of iCloud-synced `~/Documents`.
 
 **Data facts (M):** 636 `.7z` archives (2015-10-27 → 2016-01-23, about half a
 season) but 632 events CSVs. 4 archives are 32-byte stubs with no events:
 `01.14.2016.CHI.at.PHI`, `01.14.2016.CLE.at.SAS`, `01.14.2016.DET.at.MEM`,
 `01.23.2016.UTA.at.WAS`; `01.23.2016.CHI.at.CLE` has events but 0 moments →
-~631 usable (the batch prints a traceback for the others and carries on). Speed
-is not a bottleneck: ~3.2 s/game measured. File names don't carry the game id;
+~631 usable (the batch logs a failure for the others and carries on). Speed is not
+a bottleneck: 2.8–3.9 s/game measured over 7 games (~23 s total; ~35 min serial
+for all 631), 0.86 GB peak RSS per extraction process, so on 8 GB RAM at most ~3
+parallel workers. File names don't carry the game id;
 it comes from the JSON `gameid`. Never write per-game `moments` CSVs in a batch
 (43 MB × 631).
 
@@ -132,10 +152,12 @@ assists. Closest literature (from memory): Cervone et al. 2014/2016 (EPV),
 Power et al. KDD 2017 "Not All Passes Are Created Equal".
 
 **Next steps (priority order — confirm with owner before starting):**
-- P0 run a dev batch (~20 games): `cd Code && python3 passtracking.py
-  ../Shots/allgames.txt` writes `Tracking_Data/pass_features/*.pkl` (ignored by
-  git); re-run `validate_passes.py` on a few new games to check the thresholds
-  hold up; fix whatever breaks.
+- P0 run a dev batch (~20 games): `cd Code && ./fetch_games.sh <list> && export
+  TRACKING_DATA_DIR=~/.cache/basketballPlayOptimisation/Tracking_Data &&
+  ../.venv/bin/python passtracking.py <list>` writes
+  `Tracking_Data/pass_features/*.pkl` (ignored by git). It is resumable (see
+  Working notes). Re-run `validate_passes.py` on a few new games to check the
+  thresholds hold up; fix whatever breaks.
 - P0 fix `pass_model.py` evaluation (GroupKFold by game, PR-AUC, class weights,
   calibration) and save `features.meta` with the pickles.
 - P1 loader + batch: one loader module (stream `7z e -so`, game id from JSON, no
@@ -150,10 +172,32 @@ of raw data in git or move to LFS/DVC/bucket (history rewrite acceptable)? (4)
 does Dhruv still have the trained `.keras` models/scalers (none are tracked)?
 **Planned changes the owner wanted to implement (not yet recorded — add here).**
 
+**Model run (2026-10-19, `pass_model.py` on the first 7 games of
+`Shots/allgames.txt`, M1):** extraction 23 s for 7 games; model script 8.4 s wall
+(TensorFlow import ~7 s warm — **64 s on the very first import**; load + build +
+5 epochs + predict ≈ 1.2 s), 340 MB peak. Input: 3,470 passes → 2,449 after the
+script's `backcourt == 0` + `dropna` filters, 43 failures (1.8%). Result: F1 0.990,
+accuracy 0.980, ROC AUC 0.47–0.48 across two runs — it predicts "completed" for
+everything (always-guess-completed scores 98.2%), so these metrics say nothing;
+only the plumbing and timings are meaningful. Needs hundreds of games, class
+weights and grouped evaluation (see Next steps).
+
 **Working notes for a fresh session:**
-- Run everything from `Code/` (relative paths). `get_data` extracts into the
-  shared relative `./temp` and takes `game_id` from whatever JSON is there →
-  never run two pipeline processes at once from the same directory.
+- Run from `Code/` (relative paths) with `../.venv/bin/python`. `get_data` extracts
+  each game into its own temporary directory (no shared `./temp` any more), so a
+  killed run can't leave a stale JSON and runs don't collide.
+- **Resumable batch:** `python passtracking.py <list> [--retry-failed]
+  [--allow-stale]`. Safe to stop any time (Ctrl-C, shutdown, power loss) and run
+  the same command later: it skips games already done, writes each pickle
+  atomically (temp file + rename), stops cleanly on SIGINT/SIGTERM after the
+  current game (tested: SIGTERM and `kill -9` both resume correctly), and logs
+  every game to `Tracking_Data/pass_features/_status.csv` (game, status
+  ok/failed/unavailable, rows, seconds, code version, error). Results are stamped
+  with a hash of `passtracking.py` + `getting_data.py`; pickles from older code are
+  redone unless `--allow-stale`, so a resume can't silently reuse stale data.
+  `pass_model.py <list>` also resumes training from the last finished epoch
+  (Keras `BackupAndRestore`; written but not exercised — training takes ~1 s).
+  Tip: `caffeinate -i <command>` stops the Mac sleeping mid-run.
 - Logged runs: `./run_logged.sh <name> python3 <script>.py` → `../logs/`.
   `_regenerate_fixed.py` re-runs the sample game and writes `*_v2.csv` to
   `Tracking_Data/passes/` (ignored by git). The unsuffixed CSVs there are the
@@ -192,6 +236,8 @@ does Dhruv still have the trained `.keras` models/scalers (none are tracked)?
     from `moments` (see "Current status" for how); `features` extracts
     release-time pass-geometry features; `main()` runs the sample game, or
     batch-processes a game list given as argv[1].
+  - `fetch_games.sh` — copies games out of git history into a local folder outside
+    iCloud (see "iCloud placeholders" in Current status).
   - `validate_passes.py` — acceptance checks (assist recall, precision proxies,
     failure matching, leakage tests, attack direction) for any games.
   - `pass_model.py` — the Keras trainer: loads per-game feature pickles from

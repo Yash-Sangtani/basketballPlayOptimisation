@@ -5,15 +5,23 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout
 from tensorflow.keras.optimizers import Adam
 from sklearn.metrics import roc_auc_score, roc_curve, accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, BackupAndRestore
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import os
+import sys
+import time
 
+T0 = time.perf_counter()
+def stamp(msg):
+    print(f"[time] {time.perf_counter() - T0:7.1f}s  {msg}", flush=True)
+
+#Usage: python pass_model.py [game list]; default is the full list in Shots/.
+game_list = sys.argv[1] if len(sys.argv) > 1 else '../Shots/allgames.txt'
 dates, aways, homes = [], [], []
-with open('./allgames.txt', 'r') as file:
+with open(game_list, 'r') as file:
     lines = file.readlines()
     for line in lines:
         components = line.split('.')
@@ -30,6 +38,9 @@ def load_data(lists):
         if file_name in NOO:
             continue
         data_path = os.path.join(directory, file_name)
+        if not os.path.exists(data_path):
+            print(f"No feature pickle for {file_name}, skipping")
+            continue
         df = pd.read_pickle(data_path)
         X.append(df)
     return pd.concat(X, ignore_index=True).astype('float32')
@@ -37,6 +48,7 @@ def load_data(lists):
 # Load and prepare data
 data_lists = zip(dates, aways, homes)
 X = load_data(data_lists)
+stamp(f"feature pickles loaded ({len(X)} passes)")
 X = X.loc[X['backcourt'] == 0]
 print(len(X))
 X.dropna(inplace=True)
@@ -61,11 +73,17 @@ model = Sequential([
 model.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
 
 # Fitting the model
-history = model.fit(X_train, y_train, epochs=5, batch_size=32, validation_split=0.4)
+stamp(f"model built; training on {len(X_train)} passes, testing on {len(X_test)}")
+#BackupAndRestore saves after every epoch: if the run is stopped (Ctrl-C, shutdown),
+#running the same command again continues from the last finished epoch.
+backup = BackupAndRestore(backup_dir='./../Tracking_Data/pass_model_backup')
+history = model.fit(X_train, y_train, epochs=5, batch_size=32, validation_split=0.4, callbacks=[backup])
+stamp("training done")
 
 #y_pred = (model.predict(X_test) > 0.5).astype("int32")
 y_pred = (model.predict(X_test) > 0.5).astype("int32")
 y_pred_prob = model.predict(X_test).ravel()  # Prediction probabilities needed for ROC AUC
+stamp("prediction done")
 
 weights = model.layers[0].get_weights()[0]
 print(weights)
@@ -86,6 +104,7 @@ plt.ylabel('True Positive Rate')
 plt.title('Receiver Operating Characteristic')
 plt.legend(loc="lower right")
 plt.show()
+stamp("metrics and ROC plot done")
 #Plotting the Losses and Val Losses.
 loss = history.history['loss']
 val_loss = history.history['val_loss']

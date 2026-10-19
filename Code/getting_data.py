@@ -3,12 +3,30 @@ import numpy as np
 import os
 import json
 import subprocess
+import tempfile
 """
 Reads the trscking data in a more readable format.
 This can help us make our models more easily.
 """
-if not os.path.exists('temp'):
-    os.mkdir('temp')
+
+#Where Tracking_Data lives. Override with the TRACKING_DATA_DIR environment variable
+#(e.g. a local copy made by fetch_games.sh, outside any iCloud-synced folder).
+DATA_DIR = os.environ.get('TRACKING_DATA_DIR', '../Tracking_Data')
+SF_DATALESS = 0x40000000   #macOS file flag: listed in the folder, contents not stored here
+
+
+class DatalessFileError(RuntimeError):
+    """The file is an iCloud placeholder. Reading it does NOT fail, it silently
+    returns nothing, so check before reading."""
+
+
+def require_local(path):
+    st = os.stat(path)
+    if getattr(st, 'st_flags', 0) & SF_DATALESS:
+        raise DatalessFileError(
+            f"{path} is an iCloud placeholder (not downloaded to this Mac). Download it "
+            f"(Finder: Download Now) or copy the games out of git with fetch_games.sh and "
+            f"set TRACKING_DATA_DIR.")
 
 class get_data:
     def __init__(self, date, home, away):
@@ -75,44 +93,32 @@ class get_data:
     def _get_tracking_data(self):
         """
         Retrieves tracking data from basketballPlay/Optimisation/Tracking_Data/'game logs' folder
-        The tracking data is in .7z format with in 'date.team1.at.team2' format. Unzip it and store it in ./temp folder
+        The tracking data is in .7z format with in 'date.team1.at.team2' format. It is extracted
+        into a private temporary directory that is removed afterwards, so a run that is killed
+        part-way can't leave a stale JSON for a later run to mistake for its own game, and
+        several runs can go side by side. Raises if the archive can't be read.
         """
-        tracking_folder = '../Tracking_Data/game logs'
+        tracking_folder = os.path.join(DATA_DIR, 'game logs')
         tracking_file_path = os.path.join(tracking_folder, f'{self.tracking_id}.7z')
-        output_path = './temp'
-        os.makedirs(output_path, exist_ok=True)
+        require_local(tracking_file_path)
 
-        # Run the 7z command to extract files
-        result = subprocess.run(['7z', 'e', tracking_file_path, f'-o{output_path}', '-y'], capture_output=True, text=True)
-
-        # Check if the extraction was successful
-        if result.returncode != 0:
-            print("Failed to extract files:", result.stderr)
-            return
-        
-        extracted = os.listdir('./temp')
-        # Assuming the json file is named based on the game_id
-        for file in extracted:
-            if 'json' in file:
-                self.game_id = file[:-5]
-
-        json_file_path = os.path.join(output_path, f'{self.game_id}.json')
-        if not os.path.exists(json_file_path):
-            print(f"No JSON file found at {json_file_path}")
-            return
-
-        with open(json_file_path, 'r') as data_file:
-            self.tracking_data = json.load(data_file)
-
-        # Clean up the JSON file after loading
-        os.remove(json_file_path)
-        #print('Extraction Done!')
-
-
+        with tempfile.TemporaryDirectory(prefix='tracking_') as output_path:
+            result = subprocess.run(['7z', 'e', tracking_file_path, f'-o{output_path}', '-y'],
+                                    capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"7z could not extract {tracking_file_path}: "
+                                   f"{(result.stderr or result.stdout).strip()[-200:]}")
+            jsons = [f for f in os.listdir(output_path) if f.endswith('.json')]
+            if len(jsons) != 1:
+                raise RuntimeError(f"expected one JSON in {tracking_file_path}, found {jsons}")
+            self.game_id = jsons[0][:-5]   #The json is named after the game id.
+            with open(os.path.join(output_path, jsons[0]), 'r') as data_file:
+                self.tracking_data = json.load(data_file)
 
     def _get_play_by_play_data(self):
-        path = '../Tracking_Data/events'
+        path = os.path.join(DATA_DIR, 'events')
         file_path = f'{path}/{self.game_id}.csv'
+        require_local(file_path)
         self.pbp = pd.read_csv(file_path)
         #print('Read the events data for this match.')
 
