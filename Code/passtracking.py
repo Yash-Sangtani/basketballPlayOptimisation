@@ -535,6 +535,13 @@ def process_features(date_away_home):
         os.makedirs(OUT_DIR, exist_ok=True)
         feature = features(date, home, away)
         feature.features_extraction()
+        #Per-game metadata (game, quarter, game_time, frame, passer, target, outcome, ...) goes in
+        #pass_features/meta/, so pooled models can group by game. Written first; the features
+        #pickle is the "done" marker, so a kill in between just redoes the game.
+        meta_out = f'{OUT_DIR}/meta/{date}.{away}.{home}.pkl'
+        os.makedirs(os.path.dirname(meta_out), exist_ok=True)
+        feature.meta.assign(game=game).to_pickle(meta_out + '.tmp')
+        os.replace(meta_out + '.tmp', meta_out)
         feature.features.to_pickle(out + '.tmp')
         os.replace(out + '.tmp', out)
         log_status(game, 'ok', len(feature.features), time.perf_counter() - start)
@@ -561,11 +568,9 @@ def read_game_list(path):
     return games
 
 
-def run_batch(game_list, retry_failed=False, allow_stale=False):
-    """Resumable batch. Re-running the same command skips games already done with
-    THIS version of the code, and games that failed before unless retry_failed
-    (allow_stale also accepts pickles made by older code). Ctrl-C or SIGTERM
-    (e.g. a shutdown) stops cleanly after the current game's write, never during it."""
+def todo_games(game_list, retry_failed=False, allow_stale=False):
+    """What still needs processing: (all games, todo list, number of stale pickles, set of
+    games that were 'unavailable' last time). Used by run_batch and by --print-todo."""
     games = read_game_list(game_list)
     status = read_status()
     latest = status.drop_duplicates('game', keep='last')
@@ -582,6 +587,15 @@ def run_batch(game_list, retry_failed=False, allow_stale=False):
         if game in failed and not retry_failed:
             continue
         todo.append((date, away, home))
+    return games, todo, stale, unavailable
+
+
+def run_batch(game_list, retry_failed=False, allow_stale=False):
+    """Resumable batch. Re-running the same command skips games already done with
+    THIS version of the code, and games that failed before unless retry_failed
+    (allow_stale also accepts pickles made by older code). Ctrl-C or SIGTERM
+    (e.g. a shutdown) stops cleanly after the current game's write, never during it."""
+    games, todo, stale, unavailable = todo_games(game_list, retry_failed, allow_stale)
     print(f"{len(games)} games listed: {len(games) - len(todo)} already done or known-bad, {len(todo)} to run"
           f" (known-bad skipped; use --retry-failed to retry them). Code version {CODE_VERSION}"
           + (f"; {stale} pickle(s) are from older code and will be redone (--allow-stale keeps them)" if stale else ""),
@@ -629,7 +643,14 @@ def main():
     parser.add_argument('--retry-failed', action='store_true', help='retry games the status log marks as failed')
     parser.add_argument('--allow-stale', action='store_true',
                         help='keep pickles made by an older version of the code instead of redoing them')
+    parser.add_argument('--print-todo', action='store_true',
+                        help='print the games that still need processing, one per line, and exit')
     args = parser.parse_args()
+    if args.game_list and args.print_todo:
+        _, todo, _, _ = todo_games(args.game_list, args.retry_failed, args.allow_stale)
+        for date, away, home in todo:
+            print(f'{date}.{away}.at.{home}')
+        return
     if args.game_list:
         run_batch(args.game_list, args.retry_failed, args.allow_stale)
         return
