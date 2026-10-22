@@ -51,6 +51,10 @@ FEATURES = ['shot_clock', 'backcourt', 'dist', 'passer_basket_dist', 'ball_end_b
             'basket_angle', 'closest_def_dist_passer', 'closest_def_dist_ball_end',
             'closest_def_trajectory', 'closest_def_angle_passer', 'closest_def_angle_ball_end',
             'closest_def_trajectory_angle', 'lane_n_def_5ft', 'passer_speed', 'target_speed']
+#Features that depend only on the passer and the basket, not on who the receiver is. In the data, failures always
+#have an INFERRED receiver (meta.target_inferred is True for every failure and False for every completion), so the
+#other features are built from a different kind of target in the two classes. `--feature-set passer` keeps only these.
+PASSER_FEATURES = ['shot_clock', 'backcourt', 'passer_basket_dist', 'closest_def_dist_passer', 'passer_speed']
 LABEL = 'pass_successful'                      #1 = completed, 0 = failed
 SIMPLE_FEATURES = ['shot_clock', 'dist']       #the "simple baseline" uses only these two
 PROB_EPS = 1e-4                                #probability floor/ceiling for log-loss and isotonic output
@@ -172,6 +176,12 @@ def restrict_population(ds: Dataset, population: str) -> Dataset:
                    ds.outcome[keep], dict(ds.info, population='frontcourt'))
 
 
+def restrict_features(ds: Dataset, names: list[str]) -> Dataset:
+    """Keep only the named feature columns (all must exist)."""
+    cols = [ds.features.index(n) for n in names]
+    return Dataset(ds.X[:, cols], ds.y, ds.g, list(names), ds.outcome, dict(ds.info, feature_set=list(names)))
+
+
 def dataset_diagnostics(ds: Dataset) -> dict:
     """Descriptive, pooled (NOT cross-validated): NaN rates, near-duplicate columns, single-feature AUCs."""
     df = pd.DataFrame(ds.X, columns=ds.features)
@@ -203,6 +213,24 @@ def outer_folds(groups: np.ndarray, n_splits: int, seed: int) -> list[tuple[np.n
     """GroupKFold by game; `seed` shuffles which games land in which fold."""
     gkf = GroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
     return [(tr, te) for tr, te in gkf.split(np.zeros(len(groups)), groups=groups)]
+
+
+def game_date(game: str):
+    from datetime import datetime
+    return datetime.strptime('.'.join(game.split('.')[:3]), '%m.%d.%Y')
+
+
+def date_block_folds(groups: np.ndarray, n_splits: int) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Folds are contiguous blocks of games in date order (test = one block of the season). Unlike
+    shuffled GroupKFold this asks whether a model fit on the rest of the season holds up on a different
+    stretch of it, which is closer to how the frozen test games (the last ~20% by date) are used."""
+    games = np.unique(groups)
+    games = games[np.argsort([game_date(x).toordinal() for x in games], kind='stable')]
+    out = []
+    for block in np.array_split(games, n_splits):
+        held = np.isin(groups, block)
+        out.append((np.flatnonzero(~held), np.flatnonzero(held)))
+    return out
 
 
 def split_by_game(idx: np.ndarray, groups: np.ndarray, frac: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -324,7 +352,9 @@ class KerasMLP:
 
     def score(self, X) -> np.ndarray:
         Xs = self.scaler.transform(self.imp.transform(X)).astype('float32')
-        return self.model.predict(Xs, batch_size=8192, verbose=0).ravel().astype(float)
+        #Direct calls in fixed-size batches: avoids the tf.data pipeline of predict() (retracing warnings).
+        return np.concatenate([np.asarray(self.model(Xs[i:i + 8192], training=False)).ravel()
+                               for i in range(0, len(Xs), 8192)]).astype(float)
 
 
 MODEL_NAMES = ('simple', 'logistic', 'gboost', 'mlp')
@@ -453,6 +483,21 @@ def reliability_table(y: np.ndarray, p: np.ndarray, n_bins: int = 10) -> pd.Data
     t = df.groupby('bin', observed=True).agg(n=('y', 'size'), failures=('y', 'sum'),
                                              mean_pred=('p', 'mean'), observed=('y', 'mean'))
     return t.reset_index(drop=True).assign(failures=lambda d: d['failures'].astype(int))
+
+
+def by_outcome_table(y: np.ndarray, outcome: np.ndarray, scores: dict[str, np.ndarray]) -> pd.DataFrame:
+    """For each kind of failure (detector `outcome`), ROC-AUC / PR-AUC of that kind against ALL completed
+    passes: shows what the labelled failures are made of and which kind the model can rank."""
+    rows = []
+    for kind in sorted(set(outcome[y == 1])):
+        keep = (y == 0) | (outcome == kind)
+        yy = (outcome[keep] == kind).astype(int)
+        row = dict(failure_type=kind, n=int(yy.sum()))
+        for name, sc in scores.items():
+            row[f'{name} ROC'] = roc_auc_score(yy, sc[keep]); row[f'{name} PR'] = average_precision_score(yy, sc[keep])
+        row['PR no-skill'] = yy.mean()
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 # ----------------------------------------------------------------------------------------------

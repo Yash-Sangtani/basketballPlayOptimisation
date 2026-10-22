@@ -272,3 +272,44 @@ def test_mlp_is_seeded_and_validates_by_game(arrays):
     assert len(val) == 1 and val[0].train and val[0].held
     assert a.notes['mlp'][0]['best_epoch'] >= 1
     assert ((a.raw['mlp'] > 0) & (a.raw['mlp'] < 1)).all()
+
+
+# ---------------------------------------------------------------- date-blocked folds and failure-type table
+def test_date_block_folds_are_game_disjoint_and_ordered():
+    games = [f"{m:02d}.{d:02d}.2015.AAA.at.B{m}{d}" for m in (11, 12) for d in (3, 9, 20)] + ["01.02.2016.AAA.at.CCC"]
+    g = np.repeat(np.array(games), 5)
+    folds = ev.date_block_folds(g, 3)
+    assert len(folds) == 3
+    all_test = np.concatenate([te for _, te in folds])
+    assert sorted(all_test) == list(range(len(g)))                        #every row tested exactly once
+    last_end = None
+    for tr, te in folds:
+        ev.assert_game_disjoint(g, tr, te)
+        dates = sorted(ev.game_date(x) for x in set(g[te]))
+        if last_end is not None:
+            assert dates[0] >= last_end                                   #blocks follow each other in time
+        last_end = dates[-1]
+    X, y, gg, feats = syn.make_arrays(n_games=30, n_rows=150, seed=2)
+    res = ev.evaluate_splits(X, y, gg, ev.date_block_folds(gg, 5), ['logistic'], feats, seed=0)
+    assert len(res.scored) == 30 * 150
+
+
+def test_by_outcome_table():
+    y = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+    outcome = np.array(['completed'] * 4 + ['intercepted', 'intercepted', 'out_of_bounds', 'out_of_bounds'])
+    score = np.array([.1, .2, .3, .4, .9, .8, .35, .15])
+    t = ev.by_outcome_table(y, outcome, {'m': score})
+    assert list(t['failure_type']) == ['intercepted', 'out_of_bounds'] and list(t['n']) == [2, 2]
+    assert t.loc[0, 'm ROC'] == 1.0
+    assert t.loc[1, 'm ROC'] == pytest.approx(roc_auc_score([0, 0, 0, 0, 1, 1], [.1, .2, .3, .4, .35, .15]))
+
+
+def test_restrict_features_passer_only(tmp_path):
+    games = syn.game_names(3, '07')
+    d = str(tmp_path / 'pk'); syn.write_pickle_dir(d, games)
+    ds = ev.load_games(d, games)
+    po = ev.restrict_features(ds, ev.PASSER_FEATURES)
+    assert po.features == ev.PASSER_FEATURES and po.X.shape == (len(ds.y), 5)
+    assert np.array_equal(po.X[:, 0], ds.X[:, ds.features.index('shot_clock')], equal_nan=True)
+    assert not set(ev.PASSER_FEATURES) & {'dist', 'ball_end_basket_dist', 'target_speed', 'lane_n_def_5ft',
+                                          'closest_def_dist_ball_end', 'closest_def_trajectory'}

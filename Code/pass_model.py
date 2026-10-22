@@ -54,6 +54,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument('--folds', type=int, default=5)
     p.add_argument('--n-boot', type=int, default=1000, help='game-clustered bootstrap replicates')
     p.add_argument('--cal-frac', type=float, default=0.25, help="share of each training fold's games held out to fit the isotonic calibrator")
+    p.add_argument('--fold-mode', choices=['group', 'date'], default='group',
+                   help="group: shuffled GroupKFold by game (default). date: contiguous blocks of games in date order")
+    p.add_argument('--feature-set', choices=['all', 'passer'], default='all',
+                   help="all: the 15 features. passer: only the 5 target-independent ones (ablation; drops the 'simple' baseline)")
     p.add_argument('--population', choices=['all', 'frontcourt'], default='all')
     p.add_argument('--dev-list', default=os.path.join(ev.SPLIT_DIR, 'dev_games.txt'))
     p.add_argument('--test-list', default=os.path.join(ev.SPLIT_DIR, 'test_games.txt'))
@@ -91,7 +95,7 @@ def tables(s: dict) -> dict[str, pd.DataFrame]:
         'PR-AUC [95% CI]': [fmt_ci(r.pr, r.pr_lo, r.pr_hi, 4) for r in d.itertuples()],
         'fold ROC mean+-sd': ['' if _blank(g(r, 'fold_roc_mean')) else f"{r.fold_roc_mean:.3f}+-{r.fold_roc_sd:.3f}" for r in d.itertuples()],
         'fold PR mean+-sd': ['' if _blank(g(r, 'fold_pr_mean')) else f"{r.fold_pr_mean:.4f}+-{r.fold_pr_sd:.4f}" for r in d.itertuples()],
-        'fit s (all folds)': ['' if _blank(g(r, 'fit_seconds')) else f"{r.fit_seconds:.0f}" for r in d.itertuples()],
+        'fit s (all folds)': ['' if _blank(g(r, 'fit_seconds')) else f"{r.fit_seconds:.1f}" for r in d.itertuples()],
     })
     out = {'discrimination': t1}
     if len(s['paired']):
@@ -171,12 +175,16 @@ def main(argv=None) -> int:
     stamp(f"loading {len(games)} listed games ({args.split}) from {args.pickles}")
     ds = ev.load_games(args.pickles, games, check_status=check_status)
     ds = ev.restrict_population(ds, args.population)
+    if args.feature_set == 'passer':
+        pf = [f for f in ev.PASSER_FEATURES if f in ds.features]       #'backcourt' is gone in the frontcourt population
+        ds = ev.restrict_features(ds, pf)
+        model_names = [m for m in model_names if m != 'simple']
     sk = {k: len(v) for k, v in ds.info['skipped'].items()}
     unlisted = 0
     if os.path.isdir(args.pickles):
         listed = {ev.game_to_pickle_name(x) for x in dev + test}
         unlisted = sum(1 for f in os.listdir(args.pickles) if f.endswith('.pkl') and f not in listed)
-    stamp(f"loaded: {ds.summary()} [{args.split}, population={args.population}]")
+    stamp(f"loaded: {ds.summary()} [{args.split}, population={args.population}, features={args.feature_set}]")
     print(f"requested {ds.info['requested']} games; skipped {sk}; pickles in neither list: {unlisted}; "
           f"code versions of loaded games: {ds.info['versions'] or 'unchecked'}; "
           f"label/outcome mismatches: {ds.info['label_outcome_mismatch']}")
@@ -188,7 +196,8 @@ def main(argv=None) -> int:
         leaked = set(ds.g) & set(test)
         if leaked:
             raise AssertionError(f"{len(leaked)} test games were loaded in dev mode: {sorted(leaked)[:3]}")
-        splits = ev.outer_folds(ds.g, args.folds, args.seed)
+        splits = (ev.outer_folds(ds.g, args.folds, args.seed) if args.fold_mode == 'group'
+                  else ev.date_block_folds(ds.g, args.folds))
     else:
         is_test = np.isin(ds.g, test)
         splits = [(np.flatnonzero(~is_test), np.flatnonzero(is_test))]
@@ -207,9 +216,9 @@ def main(argv=None) -> int:
     stamp("bootstrap done")
 
     label = ('FROZEN TEST (single final run)' if args.split == 'test'
-             else f'DEV, {args.folds}-fold GroupKFold by game, seed {args.seed}')
+             else f"DEV, {args.folds}-fold {'GroupKFold by game' if args.fold_mode == 'group' else 'date-blocked folds'}, seed {args.seed}")
     print(f"\n=== {label}: {s['n_games']} games, {s['n_rows']} scored passes, {s['n_failures']} failures, "
-          f"prevalence {s['prevalence']:.4%}, population={args.population} ===")
+          f"prevalence {s['prevalence']:.4%}, population={args.population}, features={args.feature_set} ===")
     tb = tables(s)
     print("\nDiscrimination of the raw model (positive = failed pass; CI = game-clustered bootstrap, "
           f"{args.n_boot} replicates). PR-AUC of no skill = prevalence.")
@@ -217,6 +226,9 @@ def main(argv=None) -> int:
     if 'paired' in tb:
         print("\nPaired differences vs logistic (same game resamples):")
         print(tb['paired'].to_string(index=False))
+    bo = ev.by_outcome_table(ds.y[res.scored], ds.outcome[res.scored], res.raw)
+    print("\nBy kind of labelled failure, against all completed passes (raw scores):")
+    print(bo.to_string(index=False, float_format=lambda v: f"{v:.3f}"))
     print("\nCalibration (isotonic fit on held-out calibration games inside each training fold; BSS = 1 - Brier / p(1-p)):")
     print(tb['calibration'].to_string(index=False))
     for key, t in s['reliability'].items():
@@ -228,6 +240,7 @@ def main(argv=None) -> int:
 
     if args.out:
         os.makedirs(args.out, exist_ok=True)
+        bo.to_csv(os.path.join(args.out, 'by_failure_type.csv'), index=False)
         for name in ('discrimination', 'paired', 'calibration'):
             s[name].to_csv(os.path.join(args.out, f'{name}.csv'), index=False)
         for key, t in s['reliability'].items():
@@ -236,6 +249,7 @@ def main(argv=None) -> int:
             f.write(f"{label}: {s['n_games']} games, {s['n_rows']} passes, {s['n_failures']} failures\n\n")
             for name, t in tb.items():
                 f.write(f"### {name}\n\n{md_table(t)}\n\n")
+            f.write(f"### by_failure_type\n\n{md_table(bo, '{:.3f}')}\n\n")
         np.savez_compressed(os.path.join(args.out, 'oof.npz'), scored=res.scored, fold=res.fold, y=ds.y[res.scored],
                             game=ds.g[res.scored], **{f'raw_{m}': v for m, v in res.raw.items()},
                             **{f'cal_{m}': v for m, v in res.cal.items()})
