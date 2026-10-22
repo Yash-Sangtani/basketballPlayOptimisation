@@ -223,7 +223,7 @@ class Game(object):
                            'shot_clock', 'unknown', 'positions']
         moments['game_time'] = (moments.quarter - 1) * 720 + \
                                (720 - moments.quarter_time)
-        moments.drop(['index', 'unknown'], axis=1, inplace=True)
+        moments = moments.drop(['index', 'unknown'], axis=1)
         self.moments = moments
         return self
 
