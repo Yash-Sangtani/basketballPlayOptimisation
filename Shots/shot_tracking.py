@@ -6,22 +6,38 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
+
+import config
+from court import COURT_CENTER, basket_for_x
 from simulate import Game
 
-# To get the offensive rating of the shooter and the defensive rating of the closest defender
-ratings = pd.read_csv('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/player'
-                      '/player_ratings.csv')
+# Importing this module has no side effects: the reference tables are read on first use
+# (_tables) and extraction only starts from the __main__ block at the bottom.
 
-# To get the field goal % of the shooter from the specific zone he is shooting from
-zones = pd.read_csv('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/shots/shots.csv')
+_TABLES = None
 
-fg_percentage = pd.read_csv(
-    'C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/player/player_shot_percentages.csv')
+
+def _tables():
+    """
+    Load (once) the three reference tables used by get_features. Paths come from config.py.
+
+    Returns:
+        tuple: (ratings, zones, fg_percentage)
+            ratings: offensive rating of the shooter and defensive rating of the closest defender
+            zones: shot zone of every shot (to get the zone the shooter is shooting from)
+            fg_percentage: field goal % of the shooter from the specific zone he is shooting from
+    """
+    global _TABLES
+    if _TABLES is None:
+        _TABLES = (pd.read_csv(config.ratings_path()),
+                   pd.read_csv(config.zones_path()),
+                   pd.read_csv(config.player_shot_percentages_path()))
+    return _TABLES
 
 
 def extract_games():
     """
-    Extract games from allgames.txt
+    Extract games from allgames.txt (Shots/allgames.txt, see config.game_list_path)
 
     Returns:
         list: list of games.  Each element is list is
@@ -30,7 +46,7 @@ def extract_games():
     """
 
     games = []
-    with open('allgames.txt', 'r') as game_file:
+    with open(config.game_list_path(), 'r') as game_file:
         for line in game_file:
             game = line.strip().split('.')
             date = "{game[0]}.{game[1]}.{game[2]}".format(game=game)
@@ -85,6 +101,7 @@ def get_features(date, home_team, away_team, write_file=True,
             make : 1 if the shot was made, 0 if missed -> int
             )
     """
+    ratings, zones, fg_percentage = _tables()
     game = Game(date, home_team, away_team)
 
     # Extract shot_features for each frame
@@ -101,7 +118,11 @@ def get_features(date, home_team, away_team, write_file=True,
                                           home_team=home_team)
 
     # Do not recalculate spacing data if already saved to disk
-    if filename in os.listdir('./sfeatures'):
+    sfeatures_dir = config.sfeatures_dir()
+    zones_out_dir = config.zones_out_dir()
+    os.makedirs(sfeatures_dir, exist_ok=True)
+    os.makedirs(zones_out_dir, exist_ok=True)
+    if filename in os.listdir(sfeatures_dir):
         return
 
     # Write the features to a csv file
@@ -122,7 +143,7 @@ def get_features(date, home_team, away_team, write_file=True,
         shot_frame = game.get_play_frames(event_num=frame)[1]
 
         # Get the moment details as per the frame
-        details = game._get_moment_details(shot_frame)
+        details = game._get_moment_details(shot_frame, raw=True)
 
         temp = shot_frame
         # format pctimestring to be in the format of "%02d:%02d" of the play by play
@@ -135,7 +156,7 @@ def get_features(date, home_team, away_team, write_file=True,
         while pbp_time != details[7]:
             counter += 1
             temp -= 1
-            details = game._get_moment_details(temp)
+            details = game._get_moment_details(temp, raw=True)
             if temp == 0 or counter > 5:
                 break
 
@@ -151,7 +172,7 @@ def get_features(date, home_team, away_team, write_file=True,
 
         while shooter not in details[10]:
             temp -= 1
-            details = game._get_moment_details(temp)
+            details = game._get_moment_details(temp, raw=True)
             if temp == 0:
                 break
         shooter_index = details[10].index(shooter)
@@ -184,7 +205,9 @@ def get_features(date, home_team, away_team, write_file=True,
                 points_attempted = 2
 
         # Determine the basket coordinates based on which the basket is closer to the shooter [5.35, 25] or [88.65, 25]
-        basket = [5.35, -25] if shooter_coords[0] < 47 else [88.65, -25]
+        # Raw court coordinates: details come from _get_moment_details(raw=True). The constants live in court.py;
+        # do not mix them with plot-frame (y - 50) coordinates, that made every shot ~50 ft from the rim.
+        basket = basket_for_x(shooter_coords[0])
 
         # Get the distance of the shot
         # if not filtered_zones['SHOT_DISTANCE'].empty:
@@ -224,7 +247,7 @@ def get_features(date, home_team, away_team, write_file=True,
         closest_defender_name = list({i for i in game.player_ids if game.player_ids[i] == closest_defender})[0]
 
         # Calculate the angle between the shooter, the basket, and the center of the court
-        court_center = [47, -25]  # Assuming this is the center of the court along the x-axis
+        court_center = list(COURT_CENTER)  # center of the court, [47, 25] in raw coordinates
         shooter_basket_vector = np.array(basket) - np.array(shooter_coords)
         center_basket_vector = np.array(basket) - np.array(court_center)
         shot_angle = np.arccos(np.dot(shooter_basket_vector, center_basket_vector) /
@@ -296,9 +319,9 @@ def get_features(date, home_team, away_team, write_file=True,
 
         # Get the velocity of the shooter
         if temp > 0:
-            previous_details = game._get_moment_details(temp - 1)
+            previous_details = game._get_moment_details(temp - 1, raw=True)
         else:
-            previous_details = game._get_moment_details(temp)
+            previous_details = game._get_moment_details(temp, raw=True)
 
         # For inconsistent number of players listed in the tracking data, go back to the previous frame under the
         # assumption that velocity barely changes in 1 frame
@@ -306,7 +329,7 @@ def get_features(date, home_team, away_team, write_file=True,
         while len(details[1]) != len(previous_details[1]) or len(details[1]) != 11:
             details = previous_details
             temp -= 1
-            previous_details = game._get_moment_details(temp)
+            previous_details = game._get_moment_details(temp, raw=True)
 
         delta_x = np.array(details[1]) - np.array(previous_details[1])
         delta_y = np.array(details[2]) - np.array(previous_details[2])
@@ -349,10 +372,10 @@ def get_features(date, home_team, away_team, write_file=True,
 
 
     # Write the features to a pickle file
-    with open("./sfeatures/{filename}".format(filename=filename), 'wb') as myfile:
+    with open(os.path.join(sfeatures_dir, filename), 'wb') as myfile:
         pickle.dump(features, myfile)
 
-    with open("./zones/{filename}".format(filename=filename), 'wb') as myfile:
+    with open(os.path.join(zones_out_dir, filename), 'wb') as myfile:
         pickle.dump(zone, myfile)
 
     print("Features extracted for {filename}".format(filename=filename))
@@ -366,7 +389,8 @@ def write_features(gamelist):
     """
 
     # Write all the labels in a text file
-    with open('labels.txt', 'w') as myfile:
+    os.makedirs(config.output_dir(), exist_ok=True)
+    with open(os.path.join(config.output_dir(), 'labels.txt'), 'w') as myfile:
         myfile.write("frame, shooter, shooter_name, shooter_offensive_rating, dist, x, y, shot_angle, "
                      "shooter_velocity, fg_percentage_zone, closest_defender, closest_defender_name, "
                      "closest_defender_defensive_rating, closest_defender_dist, closest_defender_angle, "
@@ -377,10 +401,11 @@ def write_features(gamelist):
         try:
             get_features(game[0], game[1], game[2],
                          write_file=True, write_score=False)
-        except:
-            with open('errorlog.txt', 'a') as myfile:
-                myfile.write("{game} Could not extract spacing data\n"
-                             .format(game=game))
+        except Exception as exc:  # was a bare except, which hid the reason (and Ctrl-C)
+            with open(os.path.join(config.output_dir(), 'errorlog.txt'), 'a') as myfile:
+                myfile.write("{game} Could not extract spacing data: {error}\n"
+                             .format(game=game, error=repr(exc)))
 
 
-write_features(extract_games())
+if __name__ == '__main__':
+    write_features(extract_games())

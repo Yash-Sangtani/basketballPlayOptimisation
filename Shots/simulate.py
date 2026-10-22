@@ -1,6 +1,7 @@
 import matplotlib
 import os
 import subprocess
+import tempfile
 import warnings
 import json
 import pandas as pd
@@ -8,19 +9,32 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from subprocess import Popen, PIPE
 import numpy as np
-import seaborn as sns
 from scipy.spatial import ConvexHull
 from matplotlib.patches import Rectangle, Circle, Arc, Polygon
-from shot_tracking_plot import extract_shot_probability
 
-matplotlib.use('TkAgg')
+import config
+from court import PLOT_Y_OFFSET
 
-# Initialize project
-if not os.path.exists('temp'):
-    os.mkdir('temp')
+# Importing this module has no side effects: no matplotlib backend is forced, no 'temp' folder is
+# created, no warnings are silenced, and neither seaborn nor TensorFlow is imported (see
+# plot_frame, which imports them only when it needs them). The 'temp' folder is created by the
+# methods that write into it (_temp_dir).
 
-# Suppress warnings
-warnings.filterwarnings("ignore")
+
+def _temp_dir():
+    """Scratch folder for video frames and videos: ./temp (created on first use)."""
+    os.makedirs('temp', exist_ok=True)
+    return 'temp'
+
+
+def _use_file_backend():
+    """
+    plot_frame/animate_play only write PNG files, so they do not need a GUI backend. Use the
+    non-interactive Agg backend unless the caller chose one with the MPLBACKEND environment
+    variable.
+    """
+    if not os.environ.get('MPLBACKEND') and plt.get_backend().lower() != 'agg':
+        plt.switch_backend('Agg')
 
 
 class Game(object):
@@ -104,33 +118,46 @@ class Game(object):
 
     def _get_tracking_data(self):
         """
-        Retrieves tracking data from basketballPlay/Optimisation/Tracking_Data/'game logs' folder
-        The tracking data is in .7z format with in 'date.team1.at.team2' format. Unzip it and store it in ./temp folder
+        Retrieves tracking data from the 'game logs' folder of Tracking_Data (see config.py:
+        TRACKING_DATA_DIR). The tracking data is in .7z format, named 'date.team2.at.team1'.
+        It is extracted into a private temporary folder that is removed afterwards, so runs do
+        not share (or leave behind) a JSON file.
         """
 
-        tracking_folder = 'C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/game logs'
-        tracking_file_path = os.path.normpath(os.path.join(tracking_folder, f'{self.tracking_id}.7z'))
-        subprocess.run(['7z', 'e', tracking_file_path, '-o./temp'], shell=True)
+        tracking_file_path = os.path.normpath(os.path.join(config.game_logs_dir(), f'{self.tracking_id}.7z'))
+        if not os.path.exists(tracking_file_path):
+            raise FileNotFoundError(f'{tracking_file_path} not found (set TRACKING_DATA_DIR to the folder '
+                                    f'that holds "game logs/")')
+        config.require_local(tracking_file_path)
 
-        # Extract game ID from extracted file name.
-        for file in os.listdir('./temp'):
-            if os.path.splitext(file)[1] == '.json':
-                self.game_id = file[:-5]
+        with tempfile.TemporaryDirectory(prefix='shots_tracking_') as output_path:
+            # No shell=True: with a list of arguments on macOS/Linux that runs bare "7z" and drops
+            # the arguments, so nothing would be extracted.
+            result = subprocess.run(['7z', 'e', tracking_file_path, f'-o{output_path}', '-y'],
+                                    capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"7z could not extract {tracking_file_path}: "
+                                   f"{(result.stderr or result.stdout).strip()[-200:]}")
+            jsons = [f for f in os.listdir(output_path) if os.path.splitext(f)[1] == '.json']
+            if len(jsons) != 1:
+                raise RuntimeError(f'expected one JSON in {tracking_file_path}, found {jsons}')
 
-        # Load tracking data and remove json file
-        with open(f'./temp/{self.game_id}.json') as data_file:
-            self.tracking_data = json.load(data_file)  # Load this json
-        os.remove(f'./temp/{self.game_id}.json')
+            # The game ID is the name of the extracted file.
+            self.game_id = jsons[0][:-5]
+
+            # Load tracking data; the temporary folder (and the JSON) is removed on exit.
+            with open(os.path.join(output_path, jsons[0])) as data_file:
+                self.tracking_data = json.load(data_file)
         return self
 
     def _get_playbyplay_data(self):
         """
-        Retrieves play by play data from basketballPlay/Optimisation/Tracking_Data/'events' folder
-        The play by play data is in in game_id.csv format
+        Retrieves play by play data from the 'events' folder of Tracking_Data (see config.py:
+        TRACKING_DATA_DIR). The play by play data is in in game_id.csv format
         """
 
-        pbp_folder = 'C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/events'
-        pbp_file_path = os.path.normpath(os.path.join(pbp_folder, f'{self.game_id}.csv'))
+        pbp_file_path = os.path.normpath(os.path.join(config.events_dir(), f'{self.game_id}.csv'))
+        config.require_local(pbp_file_path)
         pbp = pd.read_csv(pbp_file_path)
         # Store the play by play data in a dataframe
         self.pbp = pd.DataFrame(pbp)
@@ -142,7 +169,8 @@ class Game(object):
         self.pbp['game_time'] = ((self.pbp['PERIOD'] - 1) * 720 + (720 - self.pbp['Qtime']))
 
         # Format score so that it makes sense: 'XX-XX'
-        self.pbp['SCORE'] = (self.pbp['SCORE'].fillna(method='ffill').fillna('0 - 0'))
+        # (.ffill(): fillna(method='ffill') was removed in pandas 3)
+        self.pbp['SCORE'] = (self.pbp['SCORE'].ffill().fillna('0 - 0'))
         return self
 
     def _get_player_ids(self):
@@ -296,6 +324,7 @@ class Game(object):
                                         game_time + length].index.values[0] + 6
 
         # Make video of each frame
+        _temp_dir()
         filename = "./temp/{game_time}.mpeg".format(game_time=game_time)
         if commentary:
             size = (960, 960)
@@ -315,8 +344,9 @@ class Game(object):
             self.plot_frame(frame, highlight_player=highlight_player,
                             commentary=commentary, show_spacing=show_spacing)
 
-        #Execute the command
-        subprocess.run(cmdstring, shell=True)
+        #Execute the command (no shell=True: with a tuple of arguments on macOS/Linux that runs
+        #bare "ffmpeg" and drops the arguments)
+        subprocess.run(cmdstring)
 
         # Remove all the frames
         for file in os.listdir('temp'):
@@ -432,7 +462,7 @@ class Game(object):
         times = list(action_df['game_time'])
         return times
 
-    def _get_moment_details(self, frame_number, highlight_player=None):
+    def _get_moment_details(self, frame_number, highlight_player=None, raw=False):
         """
         Helper function for getting important information for a given frame
 
@@ -443,6 +473,10 @@ class Game(object):
             highlight_player (str): Name of player to be highlighted
                 in downstream plotting.
                 if None, no player is highlighted.
+            raw (bool): False (default) returns y shifted by -50 (court.PLOT_Y_OFFSET), the
+                frame matplotlib draws the court in. True returns raw court coordinates
+                (y in [0, 50], baskets at y=25). Anything that computes distances, angles or
+                features for a model must use raw=True; the default is for plotting only.
 
         Returns: tuple of data
             game_time (int): seconds into game of current moment
@@ -483,8 +517,10 @@ class Game(object):
             ids.append(player[1])
 
         # Unfortunately, the plot is below the y-axis,
-        # so the y positions need to be corrected
-        y_pos = np.array(y_pos) - 50
+        # so the y positions need to be corrected (plotting only: raw=True skips this)
+        y_pos = np.array(y_pos)
+        if not raw:
+            y_pos = y_pos - PLOT_Y_OFFSET
         shot_clock = current_moment.shot_clock
         if np.isnan(shot_clock):
             shot_clock = 24.00
@@ -530,10 +566,15 @@ class Game(object):
                                                         highlight_player=highlight_player)
 
         if show_epv:
-            self.epv = extract_shot_probability(self, self._get_moment_details(frame_number),
-                                                self._get_moment_details(frame_number - 1))
+            # Imported here, not at module level: shot_tracking_plot imports TensorFlow and needs
+            # the trained shot/zone models (none are tracked in git).
+            from shot_tracking_plot import extract_shot_probability
+            # The model features are computed in raw court coordinates, not the plot frame.
+            self.epv = extract_shot_probability(self, self._get_moment_details(frame_number, raw=True),
+                                                self._get_moment_details(frame_number - 1, raw=True))
 
         (commentary_script, score) = self._get_commentary(game_time)
+        _use_file_backend()
         fig = plt.figure()
         self._draw_court()
         frame = plt.gca()
@@ -562,7 +603,12 @@ class Game(object):
 
         plt.xlim(-5, 100)
         plt.ylim(-55, 5)
-        sns.set_style('dark')
+        try:
+            import seaborn as sns  # optional, only for the dark style
+        except ImportError:
+            pass
+        else:
+            sns.set_style('dark')
 
         if commentary:
             plt.figtext(0.15, -.20, commentary_script, size=20)
@@ -634,6 +680,7 @@ class Game(object):
 
         else:
             # Save image to disk
+            _temp_dir()
             plt.savefig('temp/{frame_number}.png'
                         .format(frame_number=frame_number),
                         bbox_inches='tight')
@@ -783,7 +830,7 @@ class Game(object):
             target_team = 'home'
         if event_team == self.away_team:
             target_team = 'away'
-        end_time = int(self.pbp[self.pbp['EVENTNUM'] == event_num].game_time)
+        end_time = int(self.pbp[self.pbp['EVENTNUM'] == event_num].game_time.iloc[0])
         # To find lower bound on the starting frame of the play,
         # determining when previous play ended
         putative_start_time = int(self.pbp.iloc[play_index - 1].game_time)
@@ -837,6 +884,7 @@ class Game(object):
                                         game_time + length].index.values[0]
 
         # Make video of each frame
+        _temp_dir()
         for frame in range(starting_frame, ending_frame):
             self.plot_frame(frame, highlight_player=highlight_player,
                             commentary=commentary, show_spacing=show_spacing, show_epv=show_epv)

@@ -8,10 +8,17 @@ import os
 import pickle
 import pandas as pd
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn import linear_model
+
+import config
 from simulate import Game
+
+
+def _seaborn():
+    """seaborn is only needed by the plot_* functions, so it is imported when one is called."""
+    import seaborn as sns
+    return sns
 
 
 def extract_games():
@@ -63,12 +70,14 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
                                           away_team=away_team,
                                           home_team=home_team)
     # Do not recalculate spacing data if already saved to disk
-    if filename in os.listdir('./data/spacing'):
+    for folder in (config.spacing_dir(), config.score_dir(), config.game_pickle_dir()):
+        os.makedirs(folder, exist_ok=True)
+    if filename in os.listdir(config.spacing_dir()):
         return
     game = Game(date, home_team, away_team)
     # Write game data to disk
     if write_game:
-        pickle.dump(game, open('data/game/' + filename, "wb"))
+        pickle.dump(game, open(config.game_pickle_dir() / filename, "wb"))
     home_offense_areas, home_defense_areas = [], []
     away_offense_areas, away_defense_areas = [], []
     print(date, home_team, away_team)
@@ -86,13 +95,11 @@ def get_spacing_statistics(date, home_team, away_team, write_file=False,
                away_offense_areas, away_defense_areas)
     # Write spacing data to disk
     if write_file:
-        pickle.dump(results, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Shots/data/spacing/' +
-                                  filename, "wb"))
+        pickle.dump(results, open(config.spacing_dir() / filename, "wb"))
     # Write game scores to disk
     if write_score:
         score = game.pbp['SCORE'].iloc[len(game.pbp) - 1]
-        pickle.dump(score, open('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Shots/data/score/' +
-                                filename, "wb"))
+        pickle.dump(score, open(config.score_dir() / filename, "wb"))
 
     return (home_offense_areas, home_defense_areas,
             away_offense_areas, away_defense_areas)
@@ -132,8 +139,8 @@ def plot_spacing(date, home_team, away_team, defense=True, save_plot=False):
     filename = ("{date}-{away_team}-"
                 "{home_team}.pkl").format(date=date, away_team=away_team,
                                           home_team=home_team)
-    if filename in os.listdir('data/spacing'):
-        data = pickle.load(open("data/spacing/" + filename, "rb"))
+    if filename in os.listdir(config.spacing_dir()):
+        data = pickle.load(open(config.spacing_dir() / filename, "rb"))
     else:
         return None
     plt.figure()
@@ -177,10 +184,10 @@ def get_spacing_details(game):
     """
 
     fname = "{game[0]}-{game[2]}-{game[1]}.pkl".format(game=game)
-    if (fname in os.listdir('data/spacing') and
-            fname in os.listdir('data/score')):
-        data = pickle.load(open("data/spacing/" + fname, "rb"))
-        score = pickle.load(open("data/score/" + fname, "rb")).split(' ')
+    if (fname in os.listdir(config.spacing_dir()) and
+            fname in os.listdir(config.score_dir())):
+        data = pickle.load(open(config.spacing_dir() / fname, "rb"))
+        score = pickle.load(open(config.score_dir() / fname, "rb")).split(' ')
         away_points, home_points = score[0], score[2]
         means = tuple(map(np.mean, data))
         return (int(home_points), int(away_points), *means)
@@ -234,6 +241,7 @@ def plot_offense_vs_defense_spacing(spacing_data):
     Returns None
         Also shows plot.
     """
+    sns = _seaborn()
     sns.regplot(x=spacing_data['away_offense_areas'],
                 y=spacing_data['home_defense_areas'],
                 fit_reg=True, color=sns.color_palette()[0],
@@ -264,6 +272,7 @@ def plot_defense_spacing_vs_score(spacing_data):
     Returns None
         Also, shows plot.
     """
+    sns = _seaborn()
     # Calculate score differential
     score_differential = spacing_data['home_points'] - spacing_data['away_points']
 
@@ -296,6 +305,7 @@ def plot_defense_spacing_vs_wins(spacing_data):
     Returns None
         Also, shows plot.
     """
+    sns = _seaborn()
     clf = linear_model.LogisticRegression(C=1)
     X = np.array(spacing_data.space_dif)
     X = X[:, np.newaxis]
@@ -334,6 +344,7 @@ def plot_team_defensive_spacing(spacing_data):
     Returns None
         Also, shows plot.
     """
+    sns = _seaborn()
     df = pd.DataFrame()
     df['home'] = spacing_data.groupby('home_team')['away_defense_areas'].sum()
     df['home_count'] = spacing_data.groupby('home_team')['away_defense_areas'].count()
@@ -363,6 +374,7 @@ def plot_teams_ability_to_space_defense(spacing_data):
     Returns None
         Also saves plot to temp dir
     """
+    sns = _seaborn()
     df = spacing_data.groupby('home_team').count()
     df['home'] = spacing_data.groupby('home_team')['away_defense_areas'].sum()
     df['home_count'] = spacing_data.groupby('home_team')['away_defense_areas'].count()
