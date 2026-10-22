@@ -100,7 +100,7 @@ Run: `cd /private/tmp/ws5a/run1 && /Users/yash/dev/basketballPlayOptimisation/.v
 - `test_imports.py`: each of the 10 modules is imported in a fresh subprocess with cwd in an empty temp folder, `MPLBACKEND=Agg`, and data/output/model
   dirs pointing at nonexistent paths. Asserts: import succeeds (a missing third-party package would skip with a visible reason, none did), no new files in
   the cwd, TensorFlow and seaborn not imported, backend still `agg` (a forced TkAgg fails it), output/model folders not created. Also: no `C:/Users` or
-  `matplotlib.use(` in any `Shots/*.py`; the extraction call sits behind `__main__`; missing models raise a `FileNotFoundError` naming all eight files
+  `matplotlib.use(` in any `Shots/*.py`; the extraction call sits behind `__main__`; missing models raise a `FileNotFoundError` naming all nine files
   before TensorFlow is imported.
 - `test_config.py`: defaults resolve from the repo and not the cwd; env overrides; a relative env value is cwd-relative; reference-table fallback;
   `require_model_files` message.

@@ -79,7 +79,7 @@ def test_missing_models_raise_a_clear_error_before_importing_tensorflow(tmp_path
     out = result.stdout
     assert 'tensorflow_imported= False' in out, out
     for name in ('shot_model_v2.keras', 'shot_scaler_mean.npy', 'shot_scaler_scale.npy',
-                 'zone_model_v2.keras', 'zone_scaler_mean.npy', 'encoder_shot_zone.pkl',
-                 'encoder_shot_area.pkl', 'encoder_shot_range.pkl'):
+                 'zone_model_v2.keras', 'zone_scaler_mean.npy', 'zone_scaler_scale.npy',
+                 'encoder_shot_zone.pkl', 'encoder_shot_area.pkl', 'encoder_shot_range.pkl'):
         assert name in out, (name, out)
     assert 'SHOTS_MODEL_DIR' in out
