@@ -19,21 +19,28 @@ tracking-data-loading logic (`Code/getting_data.py`'s `get_data` vs
 **Bottom line:** on 2026-10-19 the passing pipeline (`Code/passtracking.py`) was
 rewritten after an audit showed the old dataset did not measure pass
 difficulty. It now yields ~450–550 completed passes and ~6–13 failed passes
-per game (matched from 7–16 pbp bad-pass turnovers) with no label leak. It has
-been run on four games only: `12.12.2015 GSW@MIL` and `12.30.2015 PHI@SAC` (used
-while building, so in-sample) and `11.20.2015 SAS@NOP` and `01.12.2016 HOU@MEM`
-(held out, not retuned). The failure signal is still weak (17–21 failures per
-pair of games). `pass_model.py` has been run once, on 7 games (2026-10-19): the
-plumbing works but the model learns nothing (see "Model run" below). Python env:
-use the git-ignored venv `.venv/bin/python` (Python 3.12, TensorFlow 2.21, Keras
-3.15, pandas, sklearn); the miniforge base python has no TensorFlow. `7z` is at
-`/opt/homebrew/bin/7z`. Machine: Apple M1, 8 cores, **8 GB RAM**, ~14 GB free disk.
+per game (matched from 7–16 pbp bad-pass turnovers) with no label leak. It has now
+been run on **all 631 usable games** (306,782 passes, 5,025 failures = 1.64%; 32 min
+44 s serial). Only the first four games shaped the design (two in-sample, two
+held out), so the other 627 are untouched by tuning. Evaluated grouped by game
+(`Code/eval_by_game.py`), failure prediction reaches ROC-AUC 0.85–0.86 and PR-AUC
+0.10–0.12 against a 0.016 base rate: real signal, modest precision (details in
+"Full batch" below; the earlier two-game 0.72/0.49 was small-sample noise).
+`pass_model.py` ran on all games too, but its accuracy/F1 only equal always
+guessing "completed", so ignore them. Python env: use the git-ignored venv
+`.venv/bin/python` (Python 3.12, TensorFlow 2.21, Keras 3.15, pandas, sklearn);
+the miniforge base python has no TensorFlow. `7z` is at `/opt/homebrew/bin/7z`.
+Machine: Apple M1, 8 cores, **8 GB RAM**, disk ~98% full (free space swung between
+2.8 and 14 GB on 2026-10-19).
 
-**Git state:** all on `main`, nothing pushed (~10 commits ahead of
-`origin/main`). `.gitignore` + status docs (`519d73a`), `origin/dhruv` merged
-(`bf64535`), then the passtracking rewrite, its docs, and a follow-up (symmetric
-flight filter + attack-direction fix + held-out validation). Run
-`git log --oneline -8` to see where things are.
+**Git state:** all on `main`, and `main` is NOT pushed. The code up to `bf0110a`
+is on GitHub as the branch `cloud-full-batch` (pushed 2026-10-19 for a cloud run;
+GitHub `main` is still `693ec3a`). History: `.gitignore` + status docs
+(`519d73a`), `origin/dhruv` merged (`bf64535`), the passtracking rewrite and
+follow-ups, the resumable batch (`bf0110a`), then a docs + `eval_by_game.py`
+commit. Run `git log --oneline -8` to see where things are. The full-batch
+results (`Tracking_Data/pass_features/`, 42 MB) are local only; nothing from them
+has been pushed.
 
 **How detection works now** (constants are class attributes of `PassTracking`):
 ball-holder state machine over every frame (shot clock is a feature, not a
@@ -87,21 +94,45 @@ filter than completions (2 under 5 ft of ball travel, 3 lobs ending near a rim),
 which would let the classes differ by construction — both classes now go through
 the same `_flight_ok` filter, which cost ~5 of 27 matched failures.
 
+**Full batch (2026-10-19, all games, M1 8 GB):** 631 games ok, 5 failed (the 4 stub
+archives plus `01.23.2016.CHI.at.CLE`, as expected), 3.06 s/game mean (4.5 s max),
+306,782 passes (mean 486/game), 5,025 failures (mean 8/game, max 23, one game 0),
+42 MB of pickles, all stamped code version `d969a5a8`. A sub-agent ran it (locally,
+see the cloud gotcha in Working notes); the lead session re-checked the totals
+against the pickles and the table below against the agent's saved output.
+`Code/eval_by_game.py`: GroupKFold(5) by game, positive class = failed pass,
+imputer/scaler fit per fold, CIs from a game-clustered bootstrap (200 resamples).
+
+| rows | model | pooled ROC (95% CI) | pooled PR-AUC (95% CI) | no-skill PR |
+|---|---|---|---|---|
+| all: 306,782 passes, 5,025 failures | logistic (balanced) | 0.851 [0.847, 0.855] | 0.102 [0.096, 0.108] | 0.0164 |
+| | gradient boosting | 0.856 [0.852, 0.861] | 0.117 [0.111, 0.123] | |
+| `backcourt == 0`: 216,292 passes, 4,583 failures | logistic | 0.826 [0.821, 0.832] | 0.113 [0.107, 0.120] | 0.0212 |
+| | gradient boosting | 0.832 [0.827, 0.838] | 0.121 [0.115, 0.129] | |
+
+Both models are well above chance (PR-AUC 5–7× the base rate), gradient boosting
+slightly better. In absolute terms a PR-AUC of ~0.11 means most flagged passes are
+not failures. Leak check: largest single-feature AUC 0.786 (`closest_def_trajectory`),
+`lane_n_def_5ft` 0.785, nothing near the 0.85 alarm level, missing-value rates
+similar across classes. **Caveat (inferred, not tested):** failures are labelled by
+matching pbp turnovers to detected flights while completions come from hold-to-hold
+detection, so a signal like "a defender is on the pass line" is plausible but part
+of it may be selection. Read the AUC as "predicts what the detector labels as
+failed", not as proven pass difficulty.
+
 **Known limits of the current dataset:**
-1. ~2% of passes are failures (21 in 992 rows and 17 in 1010 rows, per pair of
-   games) → hundreds of games needed; accuracy/F1 are meaningless, use PR-AUC grouped by game.
+1. ~1.6% of passes are failures (5,025 of 306,782). Accuracy/F1 are meaningless
+   (always guessing "completed" scores ~98.4%); use PR-AUC grouped by game.
 2. Assist misses are by design (hand-offs < 5 ft, lobs/alley-oops caught above
    8 ft) or the assister has no ≥ 4-frame hold. 2 of ~15 pbp bad passes per game
    have no committer hold in tracking and cannot be matched.
 3. Residual mixed-team windows are almost all a single clean switch (possession
    changes the shot-clock check can't see), not flipping.
 4. Thresholds were tuned on games 1–2 (`HOLD_REL_SPEED` on game 1;
-   `HEAD_MAX_ANGLE`/`HEAD_FRAMES` on both). Failures skew frontcourt (about 2–3%
-   of frontcourt passes vs 0.7% of backcourt passes): possibly real, watch it
-   on more games. The gradient-boosted model is at chance leave-one-game-out
-   (0.49–0.57) and the logistic one reaches ~0.72 on only 17–21 failures, so
-   treat any model result as noise until there are hundreds of games.
-   `HOU@MEM` still had 5 shot-clock windows with repeated team flips.
+   `HEAD_MAX_ANGLE`/`HEAD_FRAMES` on both). Failures skew frontcourt (2.1% of
+   frontcourt passes vs 0.5% of backcourt ones: 4,583 vs 442 failures), which may
+   be real. Detection still flips teams in a few shot-clock windows per game
+   (5 in `HOU@MEM`).
 5. Features changed meaning: all at release; lane distance is to the pass
    *segment*; angles are interior angles at the vertex (small = defender in the
    passing direction); new `lane_n_def_5ft`, `passer_speed`, `target_speed`;
@@ -110,9 +141,9 @@ the same `_flight_ok` filter, which cost ~5 of 27 matched failures.
    game_time, frame, passer, target, outcome, target_inferred) is NOT saved by
    `process_features` — save it next to the pickles before pooled training.
 6. `Code/pass_model.py`: the model and evaluation are unchanged (random row
-   split — should be GroupKFold by game; accuracy/F1 on imbalanced data; printed
-   weights; the `NOO` skip list can never match, `.7z` names vs `.pkl`). It now
-   takes the game list as argv[1] (default `../Shots/allgames.txt`), skips games
+   split — `eval_by_game.py` is the honest evaluation; accuracy/F1 on imbalanced
+   data; unweighted loss; printed weights; the `NOO` skip list can never match,
+   `.7z` names vs `.pkl`). It now takes the game list as argv[1] (default `../Shots/allgames.txt`), skips games
    with no pickle, prints `[time]` stamps, and checkpoints each epoch.
 
 **!! iCloud placeholders (M, 2026-10-19): most of the raw data is NOT on this Mac.**
@@ -128,8 +159,15 @@ out of git history into `~/.cache/basketballPlayOptimisation/Tracking_Data`
 (outside iCloud, works offline, 1 s for 7 games) — then `export
 TRACKING_DATA_DIR=<dest>` before running; (b) download them in Finder
 ("Download Now" / "Keep Downloaded") or `brctl download` — about 3.8 GB, and the
-Mac has ~14 GB free so macOS may evict them again. Cleanest long-term fix: move
+disk is ~98% full so macOS may evict them again (it already evicted git's own pack file). Cleanest long-term fix: move
 the repo out of iCloud-synced `~/Documents`.
+
+On 2026-10-19, with free disk down to ~3 GB, macOS also evicted **git's own pack
+file** (`.git/objects/pack/pack-*.pack`, 3.9 GB, now `dataless`). Git kept working
+through it, slowly (one commit took ~8 min), but this is fragile. Nothing is lost:
+iCloud still holds the file and every commit up to `bf0110a` is on GitHub in
+`cloud-full-batch`. If git starts failing with pack errors, re-clone from GitHub
+and re-apply any uncommitted work.
 
 **Data facts (M):** 636 `.7z` archives (2015-10-27 → 2016-01-23, about half a
 season) but 632 events CSVs. 4 archives are 32-byte stubs with no events:
@@ -152,35 +190,39 @@ assists. Closest literature (from memory): Cervone et al. 2014/2016 (EPV),
 Power et al. KDD 2017 "Not All Passes Are Created Equal".
 
 **Next steps (priority order — confirm with owner before starting):**
-- P0 run a dev batch (~20 games): `cd Code && ./fetch_games.sh <list> && export
-  TRACKING_DATA_DIR=~/.cache/basketballPlayOptimisation/Tracking_Data &&
-  ../.venv/bin/python passtracking.py <list>` writes
-  `Tracking_Data/pass_features/*.pkl` (ignored by git). It is resumable (see
-  Working notes). Re-run `validate_passes.py` on a few new games to check the
-  thresholds hold up; fix whatever breaks.
-- P0 fix `pass_model.py` evaluation (GroupKFold by game, PR-AUC, class weights,
-  calibration) and save `features.meta` with the pickles.
-- P1 loader + batch: one loader module (stream `7z e -so`, game id from JSON, no
-  shared `./temp`), manifest of ~631 games, resumable Pool of ~4 with a per-game
-  status row.
+- P0 replace `pass_model.py`'s evaluation with grouped-by-game metrics (PR-AUC,
+  class weights, calibration; start from `eval_by_game.py`) and save
+  `features.meta` (game_id etc.) next to the pickles so pooled models can group
+  by game.
+- P0 move the repo out of iCloud-synced `~/Documents` and free disk (see the
+  iCloud section): the disk is ~98% full and macOS has already evicted git's own
+  3.9 GB pack file.
+- P1 improve detection using the full-batch data (assist recall 67–81%, repeated
+  team flips) and test the selection caveat (e.g. compare against turnovers by
+  type, or label failures from tracking alone).
+- P1 loader + batch: one loader module (stream `7z e -so`, game id from JSON),
+  manifest of ~631 games, resumable Pool of ~3 with a per-game status row.
 - P1 clean up the merged `Shots/` code (see Known issues), then the possession
   table and V(s) model.
 
 **Open questions for the owner:** (1) retrospective grading of decisions or live
-recommendation? (2) 20-game dev set first, date-based test split? (3) keep 3.7 GB
+recommendation? (2) a date-based test split for the final evaluation? (3) keep 3.7 GB
 of raw data in git or move to LFS/DVC/bucket (history rewrite acceptable)? (4)
-does Dhruv still have the trained `.keras` models/scalers (none are tracked)?
+does Dhruv still have the trained `.keras` models/scalers (none are tracked)? (5) push the
+42 MB of results (and keep or delete the `cloud-full-batch` branch on GitHub)?
 **Planned changes the owner wanted to implement (not yet recorded — add here).**
 
-**Model run (2026-10-19, `pass_model.py` on the first 7 games of
-`Shots/allgames.txt`, M1):** extraction 23 s for 7 games; model script 8.4 s wall
-(TensorFlow import ~7 s warm — **64 s on the very first import**; load + build +
-5 epochs + predict ≈ 1.2 s), 340 MB peak. Input: 3,470 passes → 2,449 after the
-script's `backcourt == 0` + `dropna` filters, 43 failures (1.8%). Result: F1 0.990,
-accuracy 0.980, ROC AUC 0.47–0.48 across two runs — it predicts "completed" for
-everything (always-guess-completed scores 98.2%), so these metrics say nothing;
-only the plumbing and timings are meaningful. Needs hundreds of games, class
-weights and grouped evaluation (see Next steps).
+**Model runs (2026-10-19, `pass_model.py`, M1):** (1) first 7 games of
+`Shots/allgames.txt`: extraction 23 s; script 8.4 s wall (TensorFlow import ~7 s
+warm — **64 s on the very first import**; load + build + 5 epochs + predict ≈ 1.2 s),
+340 MB peak; 3,470 passes → 2,449 after its `backcourt == 0` + `dropna` filters, 43
+failures, AUC 0.47–0.48. (2) all 631 games: ~24 s wall including the TensorFlow
+import (load 0.4 s, 5 epochs ≈ 7.5 s); 306,782 passes → 216,292 after
+`backcourt == 0` → 209,946 after dropna, 4,484 failures (2.14%); random 60/40 split
+(125,967 train / 83,979 test); F1 0.990, accuracy 0.979, ROC AUC 0.83 (0.829 and
+0.833 over two unseeded runs). Accuracy equals always-guess-completed, so only the
+AUC says anything, and it comes from a random-row split, not one grouped by game.
+Use `eval_by_game.py` for honest numbers.
 
 **Working notes for a fresh session:**
 - Run from `Code/` (relative paths) with `../.venv/bin/python`. `get_data` extracts
@@ -212,7 +254,18 @@ weights and grouped evaluation (see Next steps).
   1 universe_time, 2 quarter_time (s left), 3 shot_clock, 4 positions (list of
   `[team_id, player_id, x, y, z]`, ball first as `-1,-1`), 5 game_time. Court is
   94×50 ft; baskets at `[5.35,25]` and `[88.65,25]`.
-- Audit scratch scripts were not saved; `validate_passes.py` is the durable check.
+- Durable checks: `validate_passes.py` (detection/labels/leakage on a few games) and
+  `eval_by_game.py` (model signal over all games). The full-batch log is in
+  `logs/full_batch_worktree.log` (git-ignored).
+- **Cloud gotcha (2026-10-19):** `Agent(isolation: "remote")` did NOT start a cloud
+  session here. It ran as an ordinary local sub-agent in a git worktree under
+  `.claude/worktrees/` (a full 3.8 GB checkout inside the iCloud-synced folder,
+  which also ate disk) with `caffeinate`; its own report said it was local. Before
+  telling anyone something runs in the cloud, check `ListAgents` (cloud sessions
+  are listed with type `cloud`) and `ps` / the process's working directory. The
+  worktree was deleted after its results were verified identical and copied. A real
+  cloud run needs a Claude Code web session started by the owner on the
+  `cloud-full-batch` branch, or a scheduled cloud routine.
 
 ## Directory layout
 
@@ -227,7 +280,7 @@ weights and grouped evaluation (see Next steps).
     the pre-fix originals; `*_fixed.csv` (old code) and `*_v2.csv` (current
     code, from `_regenerate_fixed.py`) are git-ignored.
   - `pass_features/` — per-game feature pickles written by the batch run
-    (git-ignored; does not exist until you run it).
+    (git-ignored; holds the 631 pickles + `_status.csv` from the 2026-10-19 full batch).
   - `setup.sh` — installs `p7zip` and extracts all `.7z` archives in place.
 - **`Code/`** — passing pipeline.
   - `getting_data.py` — `get_data` class: extracts one game's `.7z` +
@@ -240,9 +293,12 @@ weights and grouped evaluation (see Next steps).
     iCloud (see "iCloud placeholders" in Current status).
   - `validate_passes.py` — acceptance checks (assist recall, precision proxies,
     failure matching, leakage tests, attack direction) for any games.
+  - `eval_by_game.py` — grouped-by-game evaluation of failed-pass prediction
+    (GroupKFold(5), logistic + gradient boosting, bootstrap CIs) over
+    `Tracking_Data/pass_features/`; ~8 min on all games.
   - `pass_model.py` — the Keras trainer: loads per-game feature pickles from
     `Tracking_Data/pass_features/`, trains an MLP to predict `pass_successful`,
-    reports ROC AUC / F1 / accuracy. Not yet run on real data (see status).
+    reports ROC AUC / F1 / accuracy. Run on all 631 games on 2026-10-19 (see status).
     (`pass_difficulty_model.py` is the dead draft — see Known issues.)
   - `_regenerate_fixed.py` — reruns the sample game and writes `*_v2.csv`
     to `Tracking_Data/passes/`; `run_logged.sh` — runs a command and saves a
