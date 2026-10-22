@@ -581,8 +581,9 @@ def summarize(ds_y: np.ndarray, ds_g: np.ndarray, res: EvalResult, model_names, 
         row['roc_lo'], row['roc_hi'] = ci(bm[k]['roc'])
         row['pr_lo'], row['pr_hi'] = ci(bm[k]['pr'])
         if name != 'no-skill':
-            r_f = [roc_auc_score(y[fold == f], res.raw[name][fold == f]) for f in np.unique(fold)] if len(np.unique(fold)) > 1 else [np.nan]
-            p_f = [average_precision_score(y[fold == f], res.raw[name][fold == f]) for f in np.unique(fold)] if len(np.unique(fold)) > 1 else [np.nan]
+            usable = [f for f in np.unique(fold) if len(np.unique(y[fold == f])) == 2] if len(np.unique(fold)) > 1 else []
+            r_f = [roc_auc_score(y[fold == f], res.raw[name][fold == f]) for f in usable] or [np.nan]
+            p_f = [average_precision_score(y[fold == f], res.raw[name][fold == f]) for f in usable] or [np.nan]
             row.update(fold_roc_mean=np.mean(r_f), fold_roc_sd=np.std(r_f, ddof=1) if len(r_f) > 1 else np.nan,
                        fold_pr_mean=np.mean(p_f), fold_pr_sd=np.std(p_f, ddof=1) if len(p_f) > 1 else np.nan,
                        fit_seconds=res.seconds[name])
