@@ -37,7 +37,10 @@ def test_feature_values():
     assert np.isclose(f['ball_dist'], np.hypot(20 - BASKET[0], 0))
     assert np.isclose(f['ball_xn'], 20 - 5.35) and np.isclose(f['ball_yn'], 0) and np.isclose(f['ball_angle'], 0)
     assert np.isclose(f['closest_def'], np.hypot(2, 1))      #defender at (18, 24)
-    assert f['n_def_6'] == 1 and f['n_def_10'] == 2          #(18,24) and (14,12)? (14,12) is 13.4 away -> check below
+    # distances from the holder (20, 25): 2.24, 14.3, 15.3, 10.05, 22.0 -> only (18,24) is within 6 ft, and
+    # (10,26) is 10.05 ft away, just outside the 10 ft radius
+    assert f['n_def_6'] == 1 and f['n_def_10'] == 1
+    assert np.isclose(f['second_def'], np.hypot(10, 1))
     assert f['margin'] == 3 and f['shot_clock'] == 14.0
 
 

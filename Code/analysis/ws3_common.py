@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CODE = os.path.abspath(os.path.join(HERE, '..'))
-BASELINE = '/Users/yash/dev/basketballPlayOptimisation/Tracking_Data/pass_features'   # READ-ONLY shared baseline
+BASELINE = os.environ.get('WS3_BASELINE', os.path.join(CODE, '..', 'Tracking_Data', 'pass_features'))   # READ-ONLY baseline
 RES = os.environ.get('WS3_RES', '/private/tmp/ws3/results')
 os.makedirs(RES, exist_ok=True)
 
