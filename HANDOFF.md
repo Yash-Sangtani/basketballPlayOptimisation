@@ -11,6 +11,7 @@ Everything is on `main` (GitHub: Yash-Sangtani/basketballPlayOptimisation). `bas
 | `reports/ws3-selection.md` | selection-caveat tests T1-T7: signal real but not pass difficulty |
 | `reports/ws4-detection.md` | detector sweep (no change), the one regeneration, new dev numbers, the single test run |
 | `reports/ws5b-value-review.md` | value-model MVP run on 120 dev games: works end to end, V(s) has almost no skill |
+| `reports/difficulty-results.md` | the pass-difficulty model for RL (stage 1 completion probability, stage 2 shot value), usage, caveats |
 | `reports/ws5a-shots.md` | Shots cleanup findings (no trained shot models exist) |
 
 ## Frozen split

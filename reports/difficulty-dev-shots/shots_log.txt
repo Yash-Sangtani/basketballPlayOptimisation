@@ -1,0 +1,38 @@
+401 tuning games, 62569 matched shots, FG 0.446, 3PA share 0.288, assisted share of makes 0.583
+
+shot model, GroupKFold(5) by game:
+  shot P(make) league          logloss 0.6873  Brier skill vs league avg +0.0000  ROC 0.500
+  shot P(make) distance_logit  logloss 0.6710  Brier skill vs league avg +0.0326  ROC 0.604
+  shot P(make) hgb_raw         logloss 0.6452  Brier skill vs league avg +0.0789  ROC 0.634
+  shot P(make) hgb_cal         logloss 0.6460  Brier skill vs league avg +0.0779  ROC 0.633
+  calibration by decile (hgb, calibrated):
+    pred  observed
+0  0.283     0.296
+1  0.358     0.360
+2  0.378     0.372
+3  0.389     0.387
+4  0.395     0.391
+5  0.410     0.408
+6  0.435     0.433
+7  0.467     0.454
+8  0.551     0.563
+9  0.800     0.793
+  xPts vs realised points per shot: predicted mean 0.998, actual 0.994; corr(xPts, points) 0.228
+  by distance:
+               n     fg   xpts
+shot_dist                     
+(0, 4]      8643  0.638  1.268
+(4, 10]    16392  0.487  0.974
+(10, 16]    7727  0.417  0.836
+(16, 22]   10898  0.407  0.832
+(22, 25]   12695  0.370  1.090
+(25, 30]    5720  0.338  1.015
+(30, 60]     494  0.251  0.671
+
+assist check: 122052 clean completed passes, 10463 linked to an assisted make (0.0857)
+  AUC for becoming an assist: receiver threat xPts (shot model)        0.537
+  AUC for becoming an assist: receiver distance to basket (negated)    0.630
+  AUC for becoming an assist: receiver nearest defender distance       0.555
+  AUC for becoming an assist: passer threat xPts                       0.392
+  AUC for becoming an assist: receiver threat minus passer threat (the pass's threat gain)  0.602
+  mean receiver threat: assist-linked 1.090 vs other completions 1.058 xPts

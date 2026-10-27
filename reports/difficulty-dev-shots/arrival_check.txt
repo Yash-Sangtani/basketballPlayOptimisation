@@ -1,0 +1,6 @@
+30 tuning games, 11568 live completed passes to the actual receiver, 908 assist-linked (0.078)
+  AUC for becoming an assist: threat at ARRIVAL (xPts)                 0.538
+  AUC for becoming an assist: threat at RELEASE (xPts)                 0.534
+  AUC for becoming an assist: arrival distance to basket (negated)     0.726
+  AUC for becoming an assist: release distance to basket (negated)     0.660
+  AUC for becoming an assist: arrival nearest defender distance        0.522

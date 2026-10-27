@@ -1,0 +1,62 @@
+tuning games 401: 198325 flights, 112864 clean passes, 5069 failures (0.0449); pbp-confirmed bad passes among clean fails: 2155
+  situation  logit  ROC 0.761 [0.756,0.768]  PR 0.2406 [0.2282,0.2547] (prev 0.0449)  calibrated: BSS 0.1104 logloss 0.1574 vs 0.1833  [24s]
+  situation  hgb    ROC 0.773 [0.767,0.780]  PR 0.2714 [0.2584,0.2878] (prev 0.0449)  calibrated: BSS 0.1320 logloss 0.1534 vs 0.1833  [26s]
+  original15 logit  ROC 0.836 [0.830,0.842]  PR 0.3149 [0.3015,0.3336] (prev 0.0449)  calibrated: BSS 0.1565 logloss 0.1430 vs 0.1833  [31s]
+  original15 hgb    ROC 0.860 [0.854,0.866]  PR 0.3553 [0.3408,0.3761] (prev 0.0449)  calibrated: BSS 0.1864 logloss 0.1361 vs 0.1833  [29s]
+  full       logit  ROC 0.838 [0.833,0.844]  PR 0.3145 [0.3006,0.3332] (prev 0.0449)  calibrated: BSS 0.1566 logloss 0.1429 vs 0.1833  [29s]
+  full       hgb    ROC 0.864 [0.858,0.869]  PR 0.3593 [0.3444,0.3801] (prev 0.0449)  calibrated: BSS 0.1902 logloss 0.1351 vs 0.1833  [31s]
+
+reliability (full|hgb, calibrated):
+       n  mean_pred  observed
+0  11287     0.0007    0.0013
+1  11286     0.0023    0.0025
+2  11286     0.0043    0.0053
+3  11287     0.0081    0.0088
+4  11286     0.0125    0.0131
+5  11286     0.0184    0.0172
+6  11287     0.0255    0.0282
+7  11286     0.0474    0.0453
+8  11286     0.0800    0.0834
+9  11287     0.2492    0.2441
+
+within-situation concordance of failures over completions: receiver-side-only model 0.784 (n=5069); situation-only model 0.630 (should be near 0.5)
+cross-label: a model never trained on pbp-confirmed bad passes ranks them above completions with AUC 0.809 (n=2155)
+non-pass turnovers (lost ball/travel/off. foul, excluded from training): n=1388, mean P(fail) 0.0924 vs clean completions 0.0356 vs clean failures 0.2514
+
+failure rate by dist:
+               n     obs    pred
+dist                            
+(0, 8]      1634  0.2081  0.2000
+(8, 14]    19128  0.0567  0.0578
+(14, 20]   33254  0.0345  0.0346
+(20, 26]   28319  0.0351  0.0335
+(26, 34]   20482  0.0462  0.0472
+(34, 100]  10047  0.0554  0.0559
+
+failure rate by intercept_margin:
+                      n     obs    pred
+intercept_margin                       
+(-5.0, -0.3]      48269  0.0583  0.0587
+(-0.3, -0.1]      30734  0.0462  0.0457
+(-0.1, 0.0]       14875  0.0368  0.0374
+(0.0, 0.1]         9041  0.0216  0.0208
+(0.1, 0.3]         6985  0.0110  0.0100
+(0.3, 5.0]         2960  0.0047  0.0038
+
+failure rate by closest_def_trajectory:
+                            n     obs    pred
+closest_def_trajectory                       
+(0, 2]                  33784  0.0957  0.0975
+(2, 4]                  35773  0.0368  0.0365
+(4, 6]                  23267  0.0142  0.0125
+(6, 9]                  14611  0.0050  0.0038
+(9, 100]                 5196  0.0038  0.0031
+
+failure rate by closest_def_dist_ball_end:
+                               n     obs    pred
+closest_def_dist_ball_end                       
+(0, 3]                     10109  0.0842  0.0838
+(3, 6]                     18842  0.0606  0.0614
+(6, 9]                     25630  0.0424  0.0411
+(9, 14]                    36719  0.0342  0.0343
+(14, 100]                  21459  0.0330  0.0335
