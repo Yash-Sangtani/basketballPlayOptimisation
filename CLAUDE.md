@@ -16,6 +16,8 @@ tracking-data-loading logic (`Code/getting_data.py`'s `get_data` vs
 
 ## Current status — read this first when resuming (last updated 2026-10-19)
 
+> **2026-10-27: see `HANDOFF.md` first.** It holds the latest state (all branches merged into `main`, what is finished, what was never run, the next steps and the cloud setup). The text below is the 2026-10-19 status and is still accurate for the detection design, validation and data facts.
+
 **Bottom line:** on 2026-10-19 the passing pipeline (`Code/passtracking.py`) was
 rewritten after an audit showed the old dataset did not measure pass
 difficulty. It now yields ~450–550 completed passes and ~6–13 failed passes

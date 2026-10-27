@@ -5,15 +5,15 @@ Read `CLAUDE.md` first for the project and the pass-detection design; this file 
 Everything below is measured unless marked (inferred) or (unreviewed).
 
 ## Where things are (GitHub: Yash-Sangtani/basketballPlayOptimisation)
+**Everything is merged into `main` (pushed 2026-10-27); `main` is the branch to work from.** `cloud-full-batch` is kept in sync with it.
 | branch | what it is |
 |---|---|
-| `cloud-full-batch` | **integration branch, start here.** Detection rewrite, resumable batch, metadata saving, frozen dev/test split, chunked driver, `eval_by_game.py`, this file. |
-| `baseline-results` | `cloud-full-batch` + the 65 MB baseline dataset force-added (`Tracking_Data/pass_features/`: 631 pickles, 631 meta files, `_status.csv`). Saves ~40 min of regeneration. |
-| `ws5a-shots` | Shots/ cleanup (DONE, 32 tests pass; not merged). |
-| `ws2-eval` | New grouped-by-game `pass_model.py` + `evaluation.py` + tests (code committed; **never run at full size**; no report). |
-| `ws3-selection` | WIP only: analysis scripts under `Code/analysis/` for the selection-caveat tests (unfinished, unreviewed). |
-| `ws5b-value` | Possession table (done, see below) + WIP value-model scripts under `Code/value/` (unreviewed). |
-| `main` | still the old `693ec3a`; nothing has been merged into it. `dhruv`, `yash`: untouched. |
+| `main` | all work: detection rewrite, resumable batch, metadata, frozen dev/test split, chunked driver, Shots cleanup (ws5a), new evaluation (ws2), WIP selection scripts (ws3), possession table + WIP value scripts (ws5b), this file. |
+| `baseline-results` | `cloud-full-batch` as of the handoff + the 65 MB baseline dataset force-added (`Tracking_Data/pass_features/`: 631 pickles, 631 meta files, `_status.csv`). Restore with `git checkout origin/baseline-results -- Tracking_Data/pass_features`. Saves ~40 min. |
+| `ws5a-shots`, `ws2-eval`, `ws3-selection`, `ws5b-value` | the workstream branches (already merged into `main`; kept for history). |
+| `dhruv`, `yash` | untouched. |
+
+**Known failing test after the merge:** `Code/value/tests/test_states.py::test_feature_values` (WS5b's unreviewed WIP value-model code). All other tests pass (41 Code tests, 31 Shots tests + 1 opt-in skipped). The merged `passtracking.py`/`getting_data.py` hash is still `a846f643`, so the baseline dataset is still valid.
 
 ## Verified baseline dataset (code version `a846f643`)
 631 games ok + the 5 known-bad failed (stubs `01.14.2016.CHI.at.PHI`, `CLE.at.SAS`, `DET.at.MEM`, `01.23.2016.UTA.at.WAS`, and `01.23.2016.CHI.at.CLE`), 306,782 passes, 5,025 failures (1.64%), one meta file per pickle. The acceptance gate (counts, 5 known failures, single code version, aligned meta, totals identical to the first full run) passed. Earlier result on this data (`Code/eval_by_game.py`, GroupKFold(5) by game): ROC ~0.85, PR-AUC 0.10-0.12 vs base rate 0.016. **Caveat still untested:** failures are labelled by pbp-turnover matching, so part of the signal may be selection (WS3's job).
@@ -34,12 +34,12 @@ Everything below is measured unless marked (inferred) or (unreviewed).
 3. Finish and run WS3's tests; decide from them whether the signal is real; commit `reports/ws3-selection.md`.
 4. WS4: improve detection on dev games only, regenerate once, re-evaluate with WS2's tooling, then run the test split exactly once.
 5. Review/finish WS5b (V(s) grouped by game vs shot-clock+ball-location baseline; pass delta-V vs assists), keeping it an MVP.
-6. Merge branches into `cloud-full-batch` in this order: ws5a-shots, ws2-eval, then the rest; then update `CLAUDE.md` (the only writer). Ask the owner before merging anything into GitHub `main`.
+6. Work directly on `main` (the owner approved merging everything into it); keep `CLAUDE.md` updated at the end as the single writer.
 
 ## Cloud setup (Linux; the Mac's iCloud/low-disk problems do not apply)
 ```
 git clone https://github.com/Yash-Sangtani/basketballPlayOptimisation.git && cd basketballPlayOptimisation
-git checkout cloud-full-batch
+git checkout main
 git checkout origin/baseline-results -- Tracking_Data/pass_features   # restores the verified baseline
 sudo apt-get install -y p7zip-full    # needs the `7z` binary
 python3 -m venv .venv && .venv/bin/pip install pandas numpy scikit-learn scipy matplotlib tqdm tensorflow pytest
