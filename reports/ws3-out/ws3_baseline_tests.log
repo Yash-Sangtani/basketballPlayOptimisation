@@ -1,0 +1,183 @@
+501 dev games, 245371 passes, 4051 failures (prevalence 0.0165)
+
+=== REF: all 15 features, GroupKFold(5) by game, dev games ===
+   [ref_logit: 10s]
+  logit                                        ROC 0.851 [0.846, 0.857]   PR 0.1028 [0.0965, 0.1092]
+     per-fold ROC [0.838, 0.859, 0.857, 0.865, 0.841]  PR [0.1087, 0.1066, 0.1048, 0.1063, 0.0936]
+   [ref_hgb: 10s]
+  hgb                                          ROC 0.871 [0.866, 0.876]   PR 0.1401 [0.1309, 0.1501]
+     per-fold ROC [0.86, 0.878, 0.874, 0.886, 0.862]  PR [0.1434, 0.1498, 0.1348, 0.1512, 0.13]
+   [ref_gb: 388s]
+  gb                                           ROC 0.854 [0.849, 0.860]   PR 0.1157 [0.1083, 0.1237]
+     per-fold ROC [0.841, 0.861, 0.86, 0.867, 0.847]  PR [0.1181, 0.1186, 0.1132, 0.1227, 0.1106]
+  logit, scored on frontcourt rows only (same OOF) ROC 0.827 [0.820, 0.834]   PR 0.1133 [0.1054, 0.1209]
+  hgb, scored on frontcourt rows only (same OOF) ROC 0.848 [0.841, 0.854]   PR 0.1465 [0.1359, 0.1563]
+  frontcourt share of passes 0.706; failure rate frontcourt 0.0214 vs backcourt 0.0048
+[ref took 570s]
+
+=== T3: shuffle pass_successful WITHIN each game (keeps each game base rate) ===
+  seed 1 logit : pooled ROC 0.4983 (mean of per-fold ROC 0.4992)  PR-AUC 0.0165  (base rate 0.0165)
+  seed 1 hgb   : pooled ROC 0.4972 (mean of per-fold ROC 0.5043)  PR-AUC 0.0163  (base rate 0.0165)
+  seed 2 logit : pooled ROC 0.4846 (mean of per-fold ROC 0.4847)  PR-AUC 0.0159  (base rate 0.0165)
+  seed 2 hgb   : pooled ROC 0.4918 (mean of per-fold ROC 0.4976)  PR-AUC 0.0162  (base rate 0.0165)
+  seed 3 logit : pooled ROC 0.5039 (mean of per-fold ROC 0.5041)  PR-AUC 0.0169  (base rate 0.0165)
+  seed 3 hgb   : pooled ROC 0.4870 (mean of per-fold ROC 0.4938)  PR-AUC 0.0159  (base rate 0.0165)
+  pass bar (ROC within 0.5+-0.015 and PR within base rate +-0.002 on every seed/model): FAIL
+[t3 took 29s]
+
+=== T4: feature subsets (GroupKFold(5) by game, dev) ===
+   [t4_logit_shot_clock: 1s]
+  shot_clock [logit] (1 f)                     ROC 0.647 [0.641, 0.655]   PR 0.0277 [0.0265, 0.0292]
+   [t4_hgb_shot_clock: 4s]
+  shot_clock [hgb] (1 f)                       ROC 0.651 [0.644, 0.659]   PR 0.0276 [0.0266, 0.0293]
+   [t4_logit_dist: 1s]
+  dist [logit] (1 f)                           ROC 0.618 [0.608, 0.628]   PR 0.0369 [0.0347, 0.0399]
+   [t4_hgb_dist: 3s]
+  dist [hgb] (1 f)                             ROC 0.629 [0.618, 0.639]   PR 0.0370 [0.0348, 0.0402]
+   [t4_logit_shot_clock_dist: 1s]
+  shot_clock+dist [logit] (2 f)                ROC 0.684 [0.677, 0.693]   PR 0.0408 [0.0387, 0.0449]
+   [t4_hgb_shot_clock_dist: 5s]
+  shot_clock+dist [hgb] (2 f)                  ROC 0.707 [0.700, 0.716]   PR 0.0461 [0.0440, 0.0497]
+   [t4_logit_shot_clock_dist_backcourt: 2s]
+  shot_clock+dist+backcourt [logit] (3 f)      ROC 0.692 [0.685, 0.701]   PR 0.0434 [0.0414, 0.0476]
+   [t4_hgb_shot_clock_dist_backcourt: 5s]
+  shot_clock+dist+backcourt [hgb] (3 f)        ROC 0.718 [0.711, 0.727]   PR 0.0479 [0.0456, 0.0520]
+   [t4_logit_passer-only_(no_target): 3s]
+  passer-only (no target) [logit] (5 f)        ROC 0.756 [0.749, 0.762]   PR 0.0480 [0.0454, 0.0514]
+   [t4_hgb_passer-only_(no_target): 5s]
+  passer-only (no target) [hgb] (5 f)          ROC 0.763 [0.757, 0.770]   PR 0.0493 [0.0468, 0.0521]
+   [t4_logit_phase-location_only: 4s]
+  phase/location only [logit] (5 f)            ROC 0.791 [0.785, 0.798]   PR 0.0697 [0.0662, 0.0740]
+   [t4_hgb_phase-location_only: 6s]
+  phase/location only [hgb] (5 f)              ROC 0.822 [0.816, 0.827]   PR 0.0878 [0.0841, 0.0939]
+   [t4_logit_defenders_only: 4s]
+  defenders only [logit] (7 f)                 ROC 0.822 [0.816, 0.828]   PR 0.0769 [0.0726, 0.0827]
+   [t4_hgb_defenders_only: 7s]
+  defenders only [hgb] (7 f)                   ROC 0.834 [0.830, 0.840]   PR 0.0910 [0.0860, 0.0974]
+   [t4_logit_all_15: 10s]
+  all 15 [logit] (15 f)                        ROC 0.851 [0.847, 0.857]   PR 0.1028 [0.0972, 0.1086]
+   [t4_hgb_all_15: 11s]
+  all 15 [hgb] (15 f)                          ROC 0.871 [0.866, 0.876]   PR 0.1401 [0.1337, 0.1489]
+   [t4_logit_all_minus_defenders: 5s]
+  all minus defenders [logit] (8 f)            ROC 0.799 [0.793, 0.806]   PR 0.0663 [0.0635, 0.0698]
+   [t4_hgb_all_minus_defenders: 7s]
+  all minus defenders [hgb] (8 f)              ROC 0.834 [0.828, 0.841]   PR 0.1019 [0.0971, 0.1089]
+   [t4_logit_all_minus_phase: 6s]
+  all minus phase [logit] (10 f)               ROC 0.842 [0.837, 0.846]   PR 0.0993 [0.0938, 0.1056]
+   [t4_hgb_all_minus_phase: 8s]
+  all minus phase [hgb] (10 f)                 ROC 0.857 [0.852, 0.862]   PR 0.1243 [0.1179, 0.1319]
+  paired differences (game-level bootstrap, same rows), ROC and PR-AUC:
+   [logit] all 15 - shot_clock+dist: dROC +0.167 [+0.160,+0.174]  dPR +0.0621 [+0.0552,+0.0672]
+   [logit] all 15 - shot_clock+dist+backcourt: dROC +0.159 [+0.152,+0.166]  dPR +0.0594 [+0.0528,+0.0646]
+   [logit] all 15 - passer-only (no target): dROC +0.096 [+0.090,+0.101]  dPR +0.0548 [+0.0499,+0.0601]
+   [logit] all 15 - all minus phase: dROC +0.010 [+0.008,+0.012]  dPR +0.0035 [+0.0006,+0.0073]
+   [logit] all 15 - all minus defenders: dROC +0.052 [+0.048,+0.057]  dPR +0.0365 [+0.0319,+0.0405]
+   [logit] passer-only (no target) - shot_clock+dist+backcourt: dROC +0.063 [+0.054,+0.071]  dPR +0.0046 [-0.0002,+0.0081]
+   [hgb] all 15 - shot_clock+dist: dROC +0.164 [+0.155,+0.171]  dPR +0.0941 [+0.0873,+0.1013]
+   [hgb] all 15 - shot_clock+dist+backcourt: dROC +0.153 [+0.146,+0.160]  dPR +0.0922 [+0.0847,+0.0996]
+   [hgb] all 15 - passer-only (no target): dROC +0.108 [+0.102,+0.114]  dPR +0.0908 [+0.0837,+0.0986]
+   [hgb] all 15 - all minus phase: dROC +0.014 [+0.013,+0.016]  dPR +0.0159 [+0.0117,+0.0208]
+   [hgb] all 15 - all minus defenders: dROC +0.037 [+0.033,+0.041]  dPR +0.0383 [+0.0314,+0.0431]
+   [hgb] passer-only (no target) - shot_clock+dist+backcourt: dROC +0.045 [+0.036,+0.052]  dPR +0.0014 [-0.0034,+0.0057]
+[t4 took 906s]
+
+=== T5 (baseline part): how the model scores each failure type vs completions (OOF, all dev games) ===
+  [logit] intercepted    n= 2946: ROC vs completions 0.855, mean percentile among completions 0.855
+  [logit] out_of_bounds  n=  617: ROC vs completions 0.844, mean percentile among completions 0.844
+  [logit] fumbled        n=  488: ROC vs completions 0.842, mean percentile among completions 0.842
+  [hgb] intercepted    n= 2946: ROC vs completions 0.874, mean percentile among completions 0.874
+  [hgb] out_of_bounds  n=  617: ROC vs completions 0.855, mean percentile among completions 0.855
+  [hgb] fumbled        n=  488: ROC vs completions 0.872, mean percentile among completions 0.872
+[t5 took 4s]
+
+=== T6: matched negatives (same team, same game, +-8 s game clock) ===
+
+ -- all passes: 4051 failures, 3087 matched (964 with no completion within +-8 s), 5551 distinct matched completions, mean matches/failure 1.8
+   all 15           [logit] concordance 0.889 [0.877, 0.899] (0.5 = chance) | pooled ROC (global model) 0.869 | retrained on matched: ROC 0.877 [0.869, 0.883], PR 0.7892 (prev 0.357)
+   all 15           [hgb  ] concordance 0.905 [0.897, 0.915] (0.5 = chance) | pooled ROC (global model) 0.889 | retrained on matched: ROC 0.891 [0.885, 0.897], PR 0.8131 (prev 0.357)
+   all minus phase  [logit] concordance 0.856 [0.843, 0.867] (0.5 = chance) | pooled ROC (global model) 0.854 | retrained on matched: ROC 0.856 [0.845, 0.863], PR 0.7554 (prev 0.357)
+   all minus phase  [hgb  ] concordance 0.877 [0.864, 0.888] (0.5 = chance) | pooled ROC (global model) 0.868 | retrained on matched: ROC 0.868 [0.859, 0.874], PR 0.7759 (prev 0.357)
+
+ -- frontcourt only (backcourt==0): 3703 failures, 2358 matched (1345 with no completion within +-8 s), 3900 distinct matched completions, mean matches/failure 1.7
+   all 15           [logit] concordance 0.863 [0.849, 0.876] (0.5 = chance) | pooled ROC (global model) 0.853 | retrained on matched: ROC 0.872 [0.864, 0.881], PR 0.8006 (prev 0.377)
+   all 15           [hgb  ] concordance 0.878 [0.867, 0.890] (0.5 = chance) | pooled ROC (global model) 0.872 | retrained on matched: ROC 0.880 [0.872, 0.890], PR 0.8074 (prev 0.377)
+   all minus phase  [logit] concordance 0.810 [0.794, 0.825] (0.5 = chance) | pooled ROC (global model) 0.822 | retrained on matched: ROC 0.835 [0.826, 0.846], PR 0.7441 (prev 0.377)
+   all minus phase  [hgb  ] concordance 0.844 [0.830, 0.857] (0.5 = chance) | pooled ROC (global model) 0.844 | retrained on matched: ROC 0.848 [0.839, 0.856], PR 0.7636 (prev 0.377)
+/home/user/basketballPlayOptimisation/Code/analysis/ws3_baseline_tests.py:229: RuntimeWarning: Mean of empty slice
+  fm_ = np.array([np.nanmean(v[matches[f]]) for f in fr])
+  mean value: failures vs their matched completions -> {'shot_clock': (13.45, 17.17), 'passer_basket_dist': (21.01, 44.5), 'backcourt': (0.04, 0.33), 'dist': (22.62, 18.77), 'closest_def_dist_passer': (4.59, 10.18), 'closest_def_trajectory': (1.91, 6.78), 'lane_n_def_5ft': (2.06, 0.86), 'passer_speed': (7.02, 5.18)}
+[t6 took 19s]
+
+=== T6b: target-side geometry within passer-context strata ===
+   [t6b_hgb_target_side: 8s]
+   [t6b_logit_target_side: 5s]
+  3-quantile strata (48 strata, 4051 failures with a non-empty stratum), hgb target-side only: within-stratum concordance 0.800 [0.793, 0.807]  (global ROC of same scores 0.862)
+  3-quantile strata (48 strata, 4051 failures with a non-empty stratum), logit target-side only: within-stratum concordance 0.771 [0.763, 0.778]  (global ROC of same scores 0.836)
+  5-quantile strata (180 strata, 4051 failures with a non-empty stratum), hgb target-side only: within-stratum concordance 0.791 [0.783, 0.799]  (global ROC of same scores 0.862)
+  5-quantile strata (180 strata, 4051 failures with a non-empty stratum), logit target-side only: within-stratum concordance 0.761 [0.753, 0.769]  (global ROC of same scores 0.836)
+[t6b took 16s]
+
+=== T7: permutation importance on held-out folds (drop in metric when a column/group is shuffled) ===
+
+  [hgb] importance (mean over 5 folds x 5 shuffles; baseline ROC ~ see REF)
+    defenders (all 7)                                                                                dROC +0.2270 (sd 0.0137)  dPR +0.0988
+    lane defenders (closest_def_trajectory[_angle], lane_n_def_5ft)                                  dROC +0.1373 (sd 0.0066)  dPR +0.0679
+    closest_def_trajectory                                                                           dROC +0.0732 (sd 0.0030)  dPR +0.0388
+    phase/location (shot_clock, backcourt, passer_basket_dist, ball_end_basket_dist, basket_angle)   dROC +0.0483 (sd 0.0043)  dPR +0.0681
+    closest_def_dist_ball_end                                                                        dROC +0.0385 (sd 0.0049)  dPR +0.0580
+    passer-side (shot_clock, backcourt, passer_basket_dist, closest_def_dist_passer, passer_speed)   dROC +0.0347 (sd 0.0035)  dPR +0.0372
+    speeds (passer_speed, target_speed)                                                              dROC +0.0223 (sd 0.0021)  dPR +0.0345
+    dist                                                                                             dROC +0.0203 (sd 0.0045)  dPR +0.0341
+    passer_basket_dist                                                                               dROC +0.0137 (sd 0.0030)  dPR +0.0183
+    closest_def_angle_ball_end                                                                       dROC +0.0136 (sd 0.0022)  dPR +0.0193
+    passer_speed                                                                                     dROC +0.0114 (sd 0.0026)  dPR +0.0155
+    basket_angle                                                                                     dROC +0.0113 (sd 0.0014)  dPR +0.0379
+    target_speed                                                                                     dROC +0.0090 (sd 0.0007)  dPR +0.0208
+    ball_end_basket_dist                                                                             dROC +0.0088 (sd 0.0004)  dPR +0.0076
+    shot_clock                                                                                       dROC +0.0056 (sd 0.0006)  dPR +0.0076
+    lane_n_def_5ft                                                                                   dROC +0.0055 (sd 0.0013)  dPR +0.0094
+    closest_def_trajectory_angle                                                                     dROC +0.0051 (sd 0.0012)  dPR +0.0032
+    closest_def_angle_passer                                                                         dROC +0.0021 (sd 0.0005)  dPR +0.0010
+    closest_def_dist_passer                                                                          dROC +0.0010 (sd 0.0004)  dPR +0.0030
+    backcourt                                                                                        dROC +0.0000 (sd 0.0000)  dPR -0.0000
+
+  [logit] importance (mean over 5 folds x 5 shuffles; baseline ROC ~ see REF)
+    defenders (all 7)                                                                                dROC +0.2474 (sd 0.0112)  dPR +0.0736
+    lane defenders (closest_def_trajectory[_angle], lane_n_def_5ft)                                  dROC +0.1772 (sd 0.0062)  dPR +0.0604
+    closest_def_trajectory                                                                           dROC +0.0908 (sd 0.0074)  dPR +0.0280
+    backcourt                                                                                        dROC +0.0571 (sd 0.0023)  dPR +0.0350
+    passer-side (shot_clock, backcourt, passer_basket_dist, closest_def_dist_passer, passer_speed)   dROC +0.0476 (sd 0.0026)  dPR +0.0318
+    closest_def_dist_ball_end                                                                        dROC +0.0456 (sd 0.0027)  dPR +0.0288
+    passer_basket_dist                                                                               dROC +0.0295 (sd 0.0031)  dPR +0.0207
+    phase/location (shot_clock, backcourt, passer_basket_dist, ball_end_basket_dist, basket_angle)   dROC +0.0275 (sd 0.0016)  dPR +0.0228
+    lane_n_def_5ft                                                                                   dROC +0.0196 (sd 0.0014)  dPR +0.0211
+    dist                                                                                             dROC +0.0175 (sd 0.0025)  dPR +0.0164
+    speeds (passer_speed, target_speed)                                                              dROC +0.0161 (sd 0.0020)  dPR +0.0083
+    passer_speed                                                                                     dROC +0.0154 (sd 0.0016)  dPR +0.0086
+    ball_end_basket_dist                                                                             dROC +0.0122 (sd 0.0010)  dPR +0.0098
+    closest_def_angle_ball_end                                                                       dROC +0.0114 (sd 0.0021)  dPR +0.0112
+    basket_angle                                                                                     dROC +0.0101 (sd 0.0012)  dPR +0.0163
+    closest_def_trajectory_angle                                                                     dROC +0.0034 (sd 0.0021)  dPR +0.0019
+    closest_def_dist_passer                                                                          dROC +0.0013 (sd 0.0007)  dPR +0.0003
+    closest_def_angle_passer                                                                         dROC +0.0011 (sd 0.0008)  dPR -0.0003
+    shot_clock                                                                                       dROC +0.0002 (sd 0.0002)  dPR +0.0012
+    target_speed                                                                                     dROC -0.0000 (sd 0.0000)  dPR -0.0002
+
+  univariate: AUC for FAIL (>0.5 = larger values in failures), medians of failures vs completions
+    shot_clock                     AUC 0.353   median fail    14.16   median completed    17.14
+    backcourt                      AUC 0.394   median fail     0.00   median completed     0.00
+    dist                           AUC 0.618   median fail    21.76   median completed    17.66
+    passer_basket_dist             AUC 0.261   median fail    19.68   median completed    29.89
+    ball_end_basket_dist           AUC 0.295   median fail    21.95   median completed    26.77
+    basket_angle                   AUC 0.734   median fail     1.08   median completed     0.49
+    closest_def_dist_passer        AUC 0.278   median fail     3.78   median completed     6.71
+    closest_def_dist_ball_end      AUC 0.387   median fail     8.07   median completed    10.37
+    closest_def_trajectory         AUC 0.213   median fail     1.58   median completed     4.34
+    closest_def_angle_passer       AUC 0.448   median fail     0.76   median completed     0.88
+    closest_def_angle_ball_end     AUC 0.330   median fail     0.57   median completed     1.16
+    closest_def_trajectory_angle   AUC 0.323   median fail     0.28   median completed     0.63
+    lane_n_def_5ft                 AUC 0.786   median fail     2.00   median completed     1.00
+    passer_speed                   AUC 0.619   median fail     6.68   median completed     3.84
+    target_speed                   AUC 0.483   median fail     5.70   median completed     5.97
+  standardised logistic coefficients (positive = raises P(fail)): {'shot_clock': -0.044, 'backcourt': 1.1, 'dist': 0.328, 'passer_basket_dist': -0.541, 'ball_end_basket_dist': -0.347, 'basket_angle': 0.243, 'closest_def_dist_passer': 0.162, 'closest_def_dist_ball_end': -0.831, 'closest_def_trajectory': -1.499, 'closest_def_angle_passer': 0.09, 'closest_def_angle_ball_end': -0.289, 'closest_def_trajectory_angle': -0.168, 'lane_n_def_5ft': 0.382, 'passer_speed': 0.345, 'target_speed': 0.007}
+[t7 took 155s]

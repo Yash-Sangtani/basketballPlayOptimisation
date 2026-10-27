@@ -1,0 +1,56 @@
+[
+ {
+  "model": "logit",
+  "outcome": "intercepted",
+  "n": 2946,
+  "roc_vs_completed": 0.8545964706560175,
+  "mean_percentile_in_completions": 0.8545964706560174,
+  "median_score": 0.7272153600266009,
+  "median_completed": 0.27120330715011054
+ },
+ {
+  "model": "logit",
+  "outcome": "out_of_bounds",
+  "n": 617,
+  "roc_vs_completed": 0.8441362216077377,
+  "mean_percentile_in_completions": 0.8441362216077375,
+  "median_score": 0.7129544479655967,
+  "median_completed": 0.27120330715011054
+ },
+ {
+  "model": "logit",
+  "outcome": "fumbled",
+  "n": 488,
+  "roc_vs_completed": 0.8418079405482959,
+  "mean_percentile_in_completions": 0.8418079405482958,
+  "median_score": 0.747758418157777,
+  "median_completed": 0.27120330715011054
+ },
+ {
+  "model": "hgb",
+  "outcome": "intercepted",
+  "n": 2946,
+  "roc_vs_completed": 0.8741911678571657,
+  "mean_percentile_in_completions": 0.8741911664505548,
+  "median_score": 0.05343427643926037,
+  "median_completed": 0.004927035376701796
+ },
+ {
+  "model": "hgb",
+  "outcome": "out_of_bounds",
+  "n": 617,
+  "roc_vs_completed": 0.8552832463052349,
+  "mean_percentile_in_completions": 0.8552832463052348,
+  "median_score": 0.043324615315626314,
+  "median_completed": 0.004927035376701796
+ },
+ {
+  "model": "hgb",
+  "outcome": "fumbled",
+  "n": 488,
+  "roc_vs_completed": 0.8720048867159584,
+  "mean_percentile_in_completions": 0.8720048867159584,
+  "median_score": 0.06975841290350138,
+  "median_completed": 0.004927035376701796
+ }
+]

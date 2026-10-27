@@ -1,0 +1,214 @@
+{
+ "FULL model (15 features; rows need a heading target)": {
+  "logit": {
+   "pbp bad-pass failures (reference)": {
+    "n": 807,
+    "auc": 0.8247741242634303,
+    "pct": 0.8247741242634303
+   },
+   "tracking-only failures, live (reference)": {
+    "n": 1628,
+    "auc": 0.8120497830465473,
+    "pct": 0.8120497830465472
+   },
+   "np lost_ball: new row (no flight to opp/OOB), live": {
+    "n": 196,
+    "auc": 0.881734739511778,
+    "pct": 0.8817347395117783
+   },
+   "np lost_ball: also a tracking-only flight, live": {
+    "n": 111,
+    "auc": 0.8733899237411193,
+    "pct": 0.8733899237411193
+   },
+   "np travel: new row (no flight to opp/OOB), live": {
+    "n": 46,
+    "auc": 0.8545217368428878,
+    "pct": 0.8545217368428879
+   },
+   "np travel: also a tracking-only flight, live": {
+    "n": 4,
+    "auc": 0.8344645252939784,
+    "pct": 0.8344645252939784
+   },
+   "np off_foul: new row (no flight to opp/OOB), live": {
+    "n": 84,
+    "auc": 0.8675929162078637,
+    "pct": 0.8675929162078636
+   },
+   "np off_foul: also a tracking-only flight, live": {
+    "n": 3,
+    "auc": 0.9248678083813432,
+    "pct": 0.9248678083813432
+   },
+   "np other_to: new row (no flight to opp/OOB), live": {
+    "n": 55,
+    "auc": 0.8494845064965814,
+    "pct": 0.8494845064965812
+   },
+   "np other_to: also a tracking-only flight, live": {
+    "n": 28,
+    "auc": 0.8839635688542641,
+    "pct": 0.8839635688542643
+   }
+  },
+  "hgb": {
+   "pbp bad-pass failures (reference)": {
+    "n": 807,
+    "auc": 0.8480303043786852,
+    "pct": 0.8480302717804328
+   },
+   "tracking-only failures, live (reference)": {
+    "n": 1628,
+    "auc": 0.8015527114059194,
+    "pct": 0.8015527114059194
+   },
+   "np lost_ball: new row (no flight to opp/OOB), live": {
+    "n": 196,
+    "auc": 0.8920310291269851,
+    "pct": 0.8920310291269848
+   },
+   "np lost_ball: also a tracking-only flight, live": {
+    "n": 111,
+    "auc": 0.8924573693731613,
+    "pct": 0.8924573693731613
+   },
+   "np travel: new row (no flight to opp/OOB), live": {
+    "n": 46,
+    "auc": 0.8732190017373919,
+    "pct": 0.8732190017373919
+   },
+   "np travel: also a tracking-only flight, live": {
+    "n": 4,
+    "auc": 0.8649409412569384,
+    "pct": 0.8649409412569383
+   },
+   "np off_foul: new row (no flight to opp/OOB), live": {
+    "n": 84,
+    "auc": 0.8848304402128093,
+    "pct": 0.8848304402128095
+   },
+   "np off_foul: also a tracking-only flight, live": {
+    "n": 3,
+    "auc": 0.9133015898069958,
+    "pct": 0.9133015898069958
+   },
+   "np other_to: new row (no flight to opp/OOB), live": {
+    "n": 55,
+    "auc": 0.8631300775093688,
+    "pct": 0.8631300775093687
+   },
+   "np other_to: also a tracking-only flight, live": {
+    "n": 28,
+    "auc": 0.8954784265533219,
+    "pct": 0.8954784265533219
+   }
+  }
+ },
+ "PASSER-ONLY model (5 features, every matched row)": {
+  "logit": {
+   "pbp bad-pass failures (reference)": {
+    "n": 855,
+    "auc": 0.7173345374548359,
+    "pct": 0.7173345374548358
+   },
+   "tracking-only failures, live (reference)": {
+    "n": 2748,
+    "auc": 0.7329484766977256,
+    "pct": 0.7329484766977254
+   },
+   "np lost_ball: new row (no flight to opp/OOB), live": {
+    "n": 354,
+    "auc": 0.8693259417792578,
+    "pct": 0.8693259417792577
+   },
+   "np lost_ball: also a tracking-only flight, live": {
+    "n": 154,
+    "auc": 0.8632857139442832,
+    "pct": 0.8632857139442833
+   },
+   "np travel: new row (no flight to opp/OOB), live": {
+    "n": 176,
+    "auc": 0.8474504190895469,
+    "pct": 0.8474504190895467
+   },
+   "np travel: also a tracking-only flight, live": {
+    "n": 4,
+    "auc": 0.7773023634881826,
+    "pct": 0.7773023634881826
+   },
+   "np off_foul: new row (no flight to opp/OOB), live": {
+    "n": 205,
+    "auc": 0.8613631015243823,
+    "pct": 0.8613631015243821
+   },
+   "np off_foul: also a tracking-only flight, live": {
+    "n": 3,
+    "auc": 0.9557097913435164,
+    "pct": 0.9557097913435163
+   },
+   "np other_to: new row (no flight to opp/OOB), live": {
+    "n": 179,
+    "auc": 0.8215574573595865,
+    "pct": 0.8215574573595864
+   },
+   "np other_to: also a tracking-only flight, live": {
+    "n": 69,
+    "auc": 0.882736222130016,
+    "pct": 0.8827362221300161
+   }
+  },
+  "hgb": {
+   "pbp bad-pass failures (reference)": {
+    "n": 855,
+    "auc": 0.7293528446524906,
+    "pct": 0.7293258164910836
+   },
+   "tracking-only failures, live (reference)": {
+    "n": 2748,
+    "auc": 0.6963393903331465,
+    "pct": 0.6963266422692161
+   },
+   "np lost_ball: new row (no flight to opp/OOB), live": {
+    "n": 354,
+    "auc": 0.8586062648782802,
+    "pct": 0.8585907061352245
+   },
+   "np lost_ball: also a tracking-only flight, live": {
+    "n": 154,
+    "auc": 0.8510527514392172,
+    "pct": 0.8510351677399551
+   },
+   "np travel: new row (no flight to opp/OOB), live": {
+    "n": 176,
+    "auc": 0.8506784363072319,
+    "pct": 0.8506606605530022
+   },
+   "np travel: also a tracking-only flight, live": {
+    "n": 4,
+    "auc": 0.7452381891316351,
+    "pct": 0.7452283303099614
+   },
+   "np off_foul: new row (no flight to opp/OOB), live": {
+    "n": 205,
+    "auc": 0.854101430122275,
+    "pct": 0.8540782819295974
+   },
+   "np off_foul: also a tracking-only flight, live": {
+    "n": 3,
+    "auc": 0.9662477762880003,
+    "pct": 0.966217104398349
+   },
+   "np other_to: new row (no flight to opp/OOB), live": {
+    "n": 179,
+    "auc": 0.8048048041432165,
+    "pct": 0.8047840216736925
+   },
+   "np other_to: also a tracking-only flight, live": {
+    "n": 69,
+    "auc": 0.8740141654597945,
+    "pct": 0.8739956861225511
+   }
+  }
+ }
+}

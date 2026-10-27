@@ -1,0 +1,56 @@
+- 12.10.2015.PHI.at.BKN Q1 clock 11:14 releaser=Brook Lopez outcome=fumbled tag=shot_or_rebound_context live=True zmax=5.1 disp=7ft v0=5ft/s hold=9fr
+    pbp(-3..+8s): [11:09 T2/43] MISS Young 2' Alley Oop Layup | [11:08 T4/0] Noel REBOUND (Off:0 Def:1)
+- 11.16.2015.DAL.at.PHI Q1 clock 1:59 releaser=Robert Covington outcome=out_of_bounds tag=shot_or_rebound_context live=True zmax=6.1 disp=22ft v0=30ft/s hold=24fr
+    pbp(-3..+8s): [2:00 T2/1] MISS Villanueva 26' 3PT Jump Shot | [1:58 T4/0] Covington REBOUND (Off:0 Def:2) | [1:57 T8/0] SUB: Grant FOR Covington
+- 11.24.2015.CHI.at.POR Q4 clock 4:57 releaser=Nikola Mirotic outcome=intercepted tag=shot_or_rebound_context live=True zmax=1.2 disp=7ft v0=4ft/s hold=69fr
+    pbp(-3..+8s): [4:58 T1/63] Gasol 19' Fadeaway Jumper (8 PTS)
+- 12.23.2015.PHI.at.MIL Q2 clock 11:33 releaser=O.J. Mayo outcome=intercepted tag=dead_ball_or_inbound live=False zmax=4.1 disp=14ft v0=9ft/s hold=8fr
+    pbp(-3..+8s): [11:28 T2/78] MISS Ennis 14' Floating Jump Shot | [11:26 T4/0] Okafor REBOUND (Off:0 Def:2)
+- 12.18.2015.POR.at.ORL Q2 clock 6:36 releaser=Elfrid Payton outcome=intercepted tag=dead_ball_or_inbound live=False zmax=4.2 disp=11ft v0=24ft/s hold=27fr
+    pbp(-3..+8s): [6:36 T6/2] McCollum S.FOUL (P2.T2) (G.Petraitis) | [6:36 T3/11] Payton Free Throw 1 of 2 (3 PTS) | [6:36 T8/0] SUB: Henderson FOR Crabbe | [6:36 T8/0] SUB: Aminu FOR Leonard | [6:36 T8/0] SUB: Plumlee FOR Harkless | [6:36 T8/0] SUB: Harris FOR Gordon | [6:36 T3/12] MISS Payton Free Throw 2 of 2 | [6:34 T4/0] Davis REBOUND (Off:1 Def:2)
+- 10.30.2015.POR.at.PHX Q3 clock 8:45 releaser=CJ McCollum outcome=fumbled tag=dead_ball_or_inbound live=False zmax=6.8 disp=19ft v0=3ft/s hold=10fr
+    pbp(-3..+8s): [8:46 T2/42] MISS Tucker 1' Driving Layup | [8:45 T4/0] SUNS Rebound
+- 11.13.2015.MIN.at.IND Q4 clock 5:06 releaser=Andrew Wiggins outcome=intercepted tag=releaser_shot_context live=True zmax=10.4 disp=6ft v0=8ft/s hold=134fr
+    pbp(-3..+8s): [5:03 T1/49] Wiggins 2' Driving Dunk (24 PTS)
+- 11.08.2015.PHX.at.OKC Q3 clock 9:53 releaser=Eric Bledsoe outcome=intercepted tag=releaser_shot_context live=True zmax=8.4 disp=5ft v0=13ft/s hold=164fr
+    pbp(-3..+8s): [9:51 T2/5] Adams BLOCK (4 BLK) / MISS Bledsoe 2' Layup | [9:50 T4/0] Roberson REBOUND (Off:0 Def:3)
+- 01.01.2016.CHA.at.TOR Q4 clock 11:27 releaser=Tyler Hansbrough outcome=out_of_bounds tag=releaser_shot_context live=True zmax=3.3 disp=8ft v0=13ft/s hold=22fr
+    pbp(-3..+8s): [11:26 T2/98] Biyombo BLOCK (3 BLK) / MISS Hansbrough 4' Cutting Layup Shot | [11:26 T4/0] Hornets Rebound | [11:22 T2/52] MISS Lamb 2' Alley Oop Dunk | [11:22 T4/0] Roberts REBOUND (Off:1 Def:1)
+- 12.22.2015.DAL.at.TOR Q2 clock 5:36 releaser=Kyle Lowry outcome=intercepted tag=no_pbp_event_live live=True zmax=4.6 disp=30ft v0=152ft/s hold=37fr
+    pbp(-3..+8s): (none)
+- 11.28.2015.TOR.at.WAS Q4 clock 2:48 releaser=John Wall outcome=fumbled tag=no_pbp_event_live live=True zmax=6.6 disp=16ft v0=14ft/s hold=26fr
+    pbp(-3..+8s): (none)
+- 10.30.2015.BKN.at.SAS Q2 clock 7:35 releaser=Andrea Bargnani outcome=intercepted tag=no_pbp_event_live live=True zmax=4.8 disp=13ft v0=27ft/s hold=43fr
+    pbp(-3..+8s): [7:32 T8/0] SUB: Lopez FOR Bargnani | [7:32 T8/0] SUB: Jack FOR Larkin
+- 12.05.2015.IND.at.UTA Q1 clock 6:37 releaser=Derrick Favors outcome=intercepted tag=pbp_lost_ball_by_releaser live=True zmax=2.0 disp=12ft v0=17ft/s hold=137fr
+    pbp(-3..+8s): [6:35 T5/2] Favors Lost Ball Turnover (P1.T3) / Mahinmi STEAL (1 STL) | [6:34 T6/1] Hood P.FOUL (P1.T2) (G.Zielinski)
+- 11.30.2015.HOU.at.DET Q4 clock 11:50 releaser=Reggie Jackson outcome=fumbled tag=pbp_lost_ball_by_releaser live=True zmax=1.7 disp=19ft v0=18ft/s hold=88fr
+    pbp(-3..+8s): [11:46 T5/2] Jackson Lost Ball Turnover (P2.T9) / Thornton STEAL (1 STL) | [11:45 T6/2] Johnson S.FOUL (P2.T1) (M.Davis) | [11:45 T3/11] Brewer Free Throw 1 of 2 (8 PTS) | [11:45 T3/12] Brewer Free Throw 2 of 2 (9 PTS)
+- 11.28.2015.DEN.at.DAL Q1 clock 6:33 releaser=Zaza Pachulia outcome=intercepted tag=pbp_lost_ball_by_releaser live=True zmax=4.0 disp=8ft v0=13ft/s hold=63fr
+    pbp(-3..+8s): [6:31 T5/2] Pachulia Lost Ball Turnover (P1.T1) / Jokic STEAL (1 STL)
+- 11.06.2015.MIL.at.NYK Q3 clock 5:18 releaser=Khris Middleton outcome=intercepted tag=stoppage_context live=True zmax=5.2 disp=27ft v0=27ft/s hold=19fr
+    pbp(-3..+8s): [5:12 T6/1] Antetokounmpo P.FOUL (P3.T2) (J.Tiven)
+- 12.10.2015.PHI.at.BKN Q2 clock 6:55 releaser=Isaiah Canaan outcome=intercepted tag=stoppage_context live=True zmax=3.8 disp=17ft v0=10ft/s hold=5fr
+    pbp(-3..+8s): [6:54 T5/1] Lopez Bad Pass Turnover (P2.T8) / Canaan STEAL (1 STL) | [6:48 T6/1] Young P.FOUL (P1.T3) (S.Wright) | [6:48 T8/0] SUB: Stauskas FOR Wroten | [6:48 T8/0] SUB: McConnell FOR Canaan | [6:48 T8/0] SUB: Jack FOR Larkin
+- 11.07.2015.BKN.at.MIL Q2 clock 6:00 releaser=Jarrett Jack outcome=out_of_bounds tag=stoppage_context live=True zmax=0.8 disp=10ft v0=12ft/s hold=29fr
+    pbp(-3..+8s): [5:59 T6/1] Bayless P.FOUL (P1.T2) (R.Mott) | [5:59 T9/1] BUCKS Timeout: Regular (Full 2 Short 0) | [5:59 T8/0] SUB: Ennis FOR Parker | [5:59 T8/0] SUB: Middleton FOR Vasquez
+- 12.17.2015.OKC.at.CLE Q2 clock 4:51 releaser=Serge Ibaka outcome=out_of_bounds tag=other_players_turnover_nearby live=True zmax=0.5 disp=19ft v0=12ft/s hold=7fr
+    pbp(-3..+8s): [4:49 T5/40] Durant Out of Bounds Lost Ball Turnover (P1.T2) | [4:49 T8/0] SUB: Jefferson FOR James | [4:49 T8/0] SUB: Roberson FOR Waiters | [4:49 T8/0] SUB: Kanter FOR Adams
+- 11.09.2015.SAS.at.SAC Q4 clock 9:58 releaser=Kosta Koufos outcome=fumbled tag=other_players_turnover_nearby live=True zmax=5.1 disp=11ft v0=8ft/s hold=19fr
+    pbp(-3..+8s): [9:56 T5/1] Rondo Bad Pass Turnover (P6.T13) / Butler STEAL (2 STL)
+- 11.28.2015.DEN.at.DAL Q1 clock 6:49 releaser=Darrell Arthur outcome=intercepted tag=other_players_turnover_nearby live=True zmax=3.1 disp=11ft v0=11ft/s hold=6fr
+    pbp(-3..+8s): [6:47 T5/1] Pachulia STEAL (1 STL) / Gallinari Bad Pass Turnover (P2.T2)
+- 12.26.2015.BOS.at.DET Q4 clock 9:07 releaser=Tyler Zeller outcome=out_of_bounds tag=pbp_other_turnover_by_releaser live=True zmax=1.2 disp=29ft v0=34ft/s hold=28fr
+    pbp(-3..+8s): [9:06 T5/40] Zeller Out of Bounds Lost Ball Turnover (P2.T13)
+- 11.16.2015.DAL.at.PHI Q4 clock 7:30 releaser=Dwight Powell outcome=intercepted tag=pbp_other_turnover_by_releaser live=True zmax=5.3 disp=40ft v0=29ft/s hold=13fr
+    pbp(-3..+8s): [7:30 T5/1] Noel Bad Pass Turnover (P4.T23) / Powell STEAL (2 STL) | [7:25 T5/40] Powell Out of Bounds Lost Ball Turnover (P3.T17)
+- 12.04.2015.LAL.at.ATL Q4 clock 9:35 releaser=Dennis Schroder outcome=out_of_bounds tag=pbp_other_turnover_by_releaser live=True zmax=5.5 disp=42ft v0=26ft/s hold=103fr
+    pbp(-3..+8s): [9:33 T5/40] Schroder Out of Bounds Lost Ball Turnover (P1.T13) | [9:33 T8/0] SUB: Nance Jr. FOR Randle
+- 11.21.2015.ATL.at.CLE Q3 clock 7:26 releaser=LeBron James outcome=out_of_bounds tag=oob_kept_by_offense live=True zmax=2.1 disp=9ft v0=12ft/s hold=75fr
+    pbp(-3..+8s): [7:20 T5/1] Love Bad Pass Turnover (P2.T6) / Sefolosha STEAL (1 STL)
+- 12.27.2015.POR.at.SAC Q1 clock 5:36 releaser=CJ McCollum outcome=out_of_bounds tag=oob_kept_by_offense live=True zmax=5.0 disp=36ft v0=34ft/s hold=229fr
+    pbp(-3..+8s): [5:35 T7/5] Rondo Violation:Kicked Ball (M.Boland) | [5:35 T8/0] SUB: Belinelli FOR McLemore
+- 12.26.2015.HOU.at.NOP Q1 clock 6:34 releaser=Tyreke Evans outcome=out_of_bounds tag=oob_kept_by_offense live=True zmax=7.2 disp=31ft v0=38ft/s hold=211fr
+    pbp(-3..+8s): (none)
+- 11.27.2015.PHI.at.HOU Q3 clock 0:02 releaser=Corey Brewer outcome=fumbled tag=pbp_bad_pass_by_releaser_other_release live=True zmax=8.1 disp=29ft v0=6ft/s hold=59fr
+    pbp(-3..+8s): [0:05 T1/50] Covington  Running Dunk (21 PTS) (Stauskas 2 AST) | [0:05 T6/2] Thornton S.FOUL (P1.PN) (D.Taylor) | [0:05 T3/10] Covington Free Throw 1 of 1 (22 PTS) | [0:01 T5/1] Brewer Bad Pass Turnover (P2.T17) / Stauskas STEAL (2 STL) | [0:00 T13/0] 

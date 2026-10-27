@@ -1,0 +1,174 @@
+sample: 100 games, 52613 release rows: {'completed': 47279, 'trk_only': 3546, 'pbp_fail': 855, 'np_lost_ball': 362, 'np_off_foul': 209, 'np_other_to': 185, 'np_travel': 177}
+
+=== T1: target mode, identical games and folds ===
+  base rows 48134: actual keeps 48049, heading keeps 46963; completions without a heading target (dropped in heading mode): 1088 of 47279
+  heading target == true receiver on completions: 0.759 (no heading target: 0.023)
+  actual, all rows                                 [logit] n= 48049 fail= 807  ROC 0.838 [0.825, 0.848]  PR 0.0943 [0.0824, 0.1094]
+  heading, all rows                                [logit] n= 46963 fail= 807  ROC 0.816 [0.801, 0.827]  PR 0.0692 [0.0602, 0.0781]
+  actual, intersection rows                        [logit] n= 46961 fail= 807  ROC 0.840 [0.827, 0.849]  PR 0.0995 [0.0858, 0.1158]
+  heading, intersection rows                       [logit] n= 46961 fail= 807  ROC 0.816 [0.801, 0.827]  PR 0.0692 [0.0602, 0.0781]
+     PAIRED (intersection, same games/folds) actual - heading: dROC +0.0235 [+0.0183, +0.0289]   dPR +0.0302 [+0.0230, +0.0415]
+  actual, all rows                                 [hgb  ] n= 48049 fail= 807  ROC 0.848 [0.834, 0.858]  PR 0.1159 [0.0990, 0.1339]
+  heading, all rows                                [hgb  ] n= 46963 fail= 807  ROC 0.827 [0.813, 0.837]  PR 0.0696 [0.0627, 0.0791]
+  actual, intersection rows                        [hgb  ] n= 46961 fail= 807  ROC 0.857 [0.843, 0.867]  PR 0.1208 [0.1050, 0.1414]
+  heading, intersection rows                       [hgb  ] n= 46961 fail= 807  ROC 0.829 [0.815, 0.840]  PR 0.0708 [0.0641, 0.0794]
+     PAIRED (intersection, same games/folds) actual - heading: dROC +0.0275 [+0.0227, +0.0326]   dPR +0.0500 [+0.0377, +0.0660]
+  passer-only features (no target at all)          [logit] n= 48049 fail= 807  ROC 0.749 [0.735, 0.763]  PR 0.0457 [0.0405, 0.0504]
+  passer-only features (no target at all)          [hgb  ] n= 48049 fail= 807  ROC 0.746 [0.730, 0.759]  PR 0.0431 [0.0383, 0.0478]
+
+--- T1b: dead-ball / inbound completions ---
+  completions: 0.176 dead-ball or inbound (8328 of 47242); clock stopped 0.124, passer out of bounds 0.130; pbp failures dead/inbound: 0.024
+  [logit] all rows ROC 0.838 PR 0.0943 | same OOF, dead/inbound completions removed: ROC 0.815 [0.800, 0.827] PR 0.1004 | retrained on live rows: ROC 0.816 PR 0.1013 (live prevalence 0.0203)
+  [hgb  ] all rows ROC 0.848 PR 0.1159 | same OOF, dead/inbound completions removed: ROC 0.826 [0.810, 0.838] PR 0.1223 | retrained on live rows: ROC 0.833 PR 0.1220 (live prevalence 0.0203)
+  [logit] same OOF on frontcourt & live rows only (n=31750, fail=738): ROC 0.809 PR 0.1070
+  [hgb  ] same OOF on frontcourt & live rows only (n=31750, fail=738): ROC 0.818 PR 0.1282
+[t1 took 176s]
+
+=== T2: tracking-only failure labels ===
+  per game (mean over 100 games): completed 472.8, pbp_fail 8.6, trk_only 35.5 (sd 15.4), np-only rows 9.3; trk-only candidates removed by _flight_ok: 175.0/game
+  completed rows relabelled failed by tracking (fumbled after receipt): 956 of 47279
+  trk_only total 3546: outcomes {'intercepted': 2717, 'out_of_bounds': 504, 'fumbled': 325}
+
+  auto-tags (priority order as listed in tag_trk), counts by flight outcome:
+trk_outcome                             fumbled  intercepted  out_of_bounds   All  share
+trk_tag                                                                                 
+dead_ball_or_inbound                         33          747             18   798  0.225
+no_pbp_event_live                            27          238             44   309  0.087
+oob_kept_by_offense                           0            0             61    61  0.017
+other_players_turnover_nearby                17           81             20   118  0.033
+pbp_bad_pass_by_releaser_other_release       15           10              2    27  0.008
+pbp_lost_ball_by_releaser                    11          162              1   174  0.049
+pbp_other_turnover_by_releaser                8           25             51    84  0.024
+releaser_shot_context                        89          489             88   666  0.188
+shot_or_rebound_context                     113          890            187  1190  0.336
+stoppage_context                             12           75             32   119  0.034
+All                                         325         2717            504  3546  1.000
+
+  medians per tag (zmax ft, ball displacement ft, ball speed first 0.32 s ft/s, hold length in frames):
+                                        zmax  ball_disp  init_speed  hold_frames      n
+trk_tag                                                                                
+dead_ball_or_inbound                     5.3       18.1        28.8         23.0    798
+no_pbp_event_live                        4.9       14.4        22.3         28.0    309
+oob_kept_by_offense                      5.8       20.5        22.4         62.0     61
+other_players_turnover_nearby            4.9       12.2        18.5         14.5    118
+pbp_bad_pass_by_releaser_other_release   5.1       10.4        14.7         40.0     27
+pbp_lost_ball_by_releaser                3.8       10.7        16.6         47.0    174
+pbp_other_turnover_by_releaser           3.9       12.5        19.6         52.5     84
+releaser_shot_context                    9.5       10.6        11.8         29.0    666
+shot_or_rebound_context                  5.5       11.9        18.2         15.0   1190
+stoppage_context                         4.1       10.0        20.2         46.0    119
+(ref) pbp_fail rows                      7.0       17.8        25.9         53.0    855
+(ref) live completions                   6.1       16.1        28.0         47.0  38939
+
+  trk_only rows that have a heading target (usable for the model): 2057 of 3546 (0.58); pbp_fail rows usable: 0.94
+transfer training set: 401 other dev games, 197322 passes, 3244 failures
+
+  (i) TRANSFER: model trained on the pbp labels of the 401 OTHER dev games, scoring this sample.
+      AUC of each positive group vs (a) all completions, (b) live completions only; mean percentile of the group among live completions
+   [logit]
+      pbp-confirmed failures                                         n=  807  AUC vs all comp 0.846 | vs live comp 0.825 | mean pct 0.825
+      tracking-only failures (all)                                   n= 2057  AUC vs all comp 0.818 | vs live comp 0.793 | mean pct 0.793
+      completed-then-fumbled (tracking)                              n=  955  AUC vs all comp 0.773 | vs live comp 0.742 | mean pct 0.742
+        trk_only: dead_ball_or_inbound                               n=  429  AUC vs all comp 0.753 | vs live comp 0.721 | mean pct 0.721
+        trk_only: no_pbp_event_live                                  n=  216  AUC vs all comp 0.816 | vs live comp 0.790 | mean pct 0.790
+        trk_only: oob_kept_by_offense                                n=   36  AUC vs all comp 0.849 | vs live comp 0.827 | mean pct 0.827
+        trk_only: other_players_turnover_nearby                      n=   74  AUC vs all comp 0.832 | vs live comp 0.808 | mean pct 0.808
+        trk_only: pbp_bad_pass_by_releaser_other_release             n=   18  AUC vs all comp 0.935 | vs live comp 0.926 | mean pct 0.926
+        trk_only: pbp_lost_ball_by_releaser                          n=  127  AUC vs all comp 0.888 | vs live comp 0.872 | mean pct 0.872
+        trk_only: pbp_other_turnover_by_releaser                     n=   41  AUC vs all comp 0.907 | vs live comp 0.894 | mean pct 0.894
+        trk_only: releaser_shot_context                              n=  363  AUC vs all comp 0.906 | vs live comp 0.893 | mean pct 0.893
+        trk_only: shot_or_rebound_context                            n=  675  AUC vs all comp 0.784 | vs live comp 0.754 | mean pct 0.754
+        trk_only: stoppage_context                                   n=   78  AUC vs all comp 0.848 | vs live comp 0.827 | mean pct 0.827
+      tracking-only, live & non-shot (excl. dead_ball/shot tags)     n=  590  AUC vs all comp 0.850 | vs live comp 0.828 | mean pct 0.828
+   [hgb]
+      pbp-confirmed failures                                         n=  807  AUC vs all comp 0.868 | vs live comp 0.848 | mean pct 0.848
+      tracking-only failures (all)                                   n= 2057  AUC vs all comp 0.800 | vs live comp 0.772 | mean pct 0.772
+      completed-then-fumbled (tracking)                              n=  955  AUC vs all comp 0.789 | vs live comp 0.759 | mean pct 0.759
+        trk_only: dead_ball_or_inbound                               n=  429  AUC vs all comp 0.699 | vs live comp 0.659 | mean pct 0.659
+        trk_only: no_pbp_event_live                                  n=  216  AUC vs all comp 0.785 | vs live comp 0.754 | mean pct 0.754
+        trk_only: oob_kept_by_offense                                n=   36  AUC vs all comp 0.843 | vs live comp 0.819 | mean pct 0.819
+        trk_only: other_players_turnover_nearby                      n=   74  AUC vs all comp 0.807 | vs live comp 0.779 | mean pct 0.779
+        trk_only: pbp_bad_pass_by_releaser_other_release             n=   18  AUC vs all comp 0.948 | vs live comp 0.940 | mean pct 0.940
+        trk_only: pbp_lost_ball_by_releaser                          n=  127  AUC vs all comp 0.905 | vs live comp 0.890 | mean pct 0.890
+        trk_only: pbp_other_turnover_by_releaser                     n=   41  AUC vs all comp 0.920 | vs live comp 0.907 | mean pct 0.907
+        trk_only: releaser_shot_context                              n=  363  AUC vs all comp 0.924 | vs live comp 0.912 | mean pct 0.912
+        trk_only: shot_or_rebound_context                            n=  675  AUC vs all comp 0.765 | vs live comp 0.732 | mean pct 0.732
+        trk_only: stoppage_context                                   n=   78  AUC vs all comp 0.828 | vs live comp 0.803 | mean pct 0.803
+      tracking-only, live & non-shot (excl. dead_ball/shot tags)     n=  590  AUC vs all comp 0.837 | vs live comp 0.813 | mean pct 0.813
+
+  (ii) WITHIN-SAMPLE grouped CV (100 games) with TRACKING labels: positives = pbp failures + tracking-only failures + fumbled completions
+   [all rows] [logit] n=50058, positives 3771 (0.075) | all positives: ROC 0.838 PR 0.3443 (n+=3771) | pbp-confirmed: ROC 0.837 PR 0.0822 (n+=759) | tracking-only: ROC 0.872 PR 0.3080 (n+=2057)
+   [all rows] [hgb] n=50058, positives 3771 (0.075) | all positives: ROC 0.872 PR 0.4525 (n+=3771) | pbp-confirmed: ROC 0.851 PR 0.0887 (n+=759) | tracking-only: ROC 0.913 PR 0.4698 (n+=2057)
+   [live non-inbound completions as negatives; positives without dead_ball/shot tags] [logit] n=40317, positives 2304 (0.057) | all positives: ROC 0.801 PR 0.2188 (n+=2304) | pbp-confirmed: ROC 0.824 PR 0.1000 (n+=759) | tracking-only: ROC 0.843 PR 0.0986 (n+=590)
+   [live non-inbound completions as negatives; positives without dead_ball/shot tags] [hgb] n=40317, positives 2304 (0.057) | all positives: ROC 0.826 PR 0.2757 (n+=2304) | pbp-confirmed: ROC 0.840 PR 0.1220 (n+=759) | tracking-only: ROC 0.867 PR 0.1599 (n+=590)
+
+  manual-look sheet (28 examples) written to /tmp/claude-0/-home-user-basketballPlayOptimisation/bb835e0e-1ba5-530d-a467-365f61c7b413/scratchpad/ws3/res/t2_manual_sheet.txt
+[t2 took 21s]
+
+=== T5 (non-pass turnovers): scored by the failure model trained on the 401 OTHER dev games ===
+  pbp non-pass turnover events matched to a hold and where they ended up in the release table:
+in_table   completed  np_new  trk_only  unmatched   All
+kind                                                   
+lost_ball          8     362       156         34   560
+off_foul          43     209         5        138   395
+other_to          33     185        70        188   476
+travel            10     177         4         11   202
+All               94     933       235        371  1633
+  by kind: events, matched, matched with a flight to an opponent/OOB (flight_outcome) :
+flight     flight  no flight  unmatched   All
+kind                                         
+lost_ball     362        164         34   560
+off_foul       28        229        138   395
+other_to      110        178        188   476
+travel         12        179         11   202
+All           512        750        371  1633
+transfer training set: 401 other dev games, 197322 passes, 3244 failures
+
+  FULL model (15 features; rows need a heading target)
+   [logit] reference = 38013 live completions
+      pbp bad-pass failures (reference)                          n=  807  AUC vs live completions 0.825  mean percentile 0.825
+      tracking-only failures, live (reference)                   n= 1628  AUC vs live completions 0.812  mean percentile 0.812
+      np lost_ball: new row (no flight to opp/OOB), live         n=  196  AUC vs live completions 0.882  mean percentile 0.882
+      np lost_ball: also a tracking-only flight, live            n=  111  AUC vs live completions 0.873  mean percentile 0.873
+      np travel: new row (no flight to opp/OOB), live            n=   46  AUC vs live completions 0.855  mean percentile 0.855
+      np travel: also a tracking-only flight, live               n=    4  AUC vs live completions 0.834  mean percentile 0.834
+      np off_foul: new row (no flight to opp/OOB), live          n=   84  AUC vs live completions 0.868  mean percentile 0.868
+      np off_foul: also a tracking-only flight, live             n=    3  AUC vs live completions 0.925  mean percentile 0.925
+      np other_to: new row (no flight to opp/OOB), live          n=   55  AUC vs live completions 0.849  mean percentile 0.849
+      np other_to: also a tracking-only flight, live             n=   28  AUC vs live completions 0.884  mean percentile 0.884
+   [hgb] reference = 38013 live completions
+      pbp bad-pass failures (reference)                          n=  807  AUC vs live completions 0.848  mean percentile 0.848
+      tracking-only failures, live (reference)                   n= 1628  AUC vs live completions 0.802  mean percentile 0.802
+      np lost_ball: new row (no flight to opp/OOB), live         n=  196  AUC vs live completions 0.892  mean percentile 0.892
+      np lost_ball: also a tracking-only flight, live            n=  111  AUC vs live completions 0.892  mean percentile 0.892
+      np travel: new row (no flight to opp/OOB), live            n=   46  AUC vs live completions 0.873  mean percentile 0.873
+      np travel: also a tracking-only flight, live               n=    4  AUC vs live completions 0.865  mean percentile 0.865
+      np off_foul: new row (no flight to opp/OOB), live          n=   84  AUC vs live completions 0.885  mean percentile 0.885
+      np off_foul: also a tracking-only flight, live             n=    3  AUC vs live completions 0.913  mean percentile 0.913
+      np other_to: new row (no flight to opp/OOB), live          n=   55  AUC vs live completions 0.863  mean percentile 0.863
+      np other_to: also a tracking-only flight, live             n=   28  AUC vs live completions 0.895  mean percentile 0.895
+
+  PASSER-ONLY model (5 features, every matched row)
+   [logit] reference = 38037 live completions
+      pbp bad-pass failures (reference)                          n=  855  AUC vs live completions 0.717  mean percentile 0.717
+      tracking-only failures, live (reference)                   n= 2748  AUC vs live completions 0.733  mean percentile 0.733
+      np lost_ball: new row (no flight to opp/OOB), live         n=  354  AUC vs live completions 0.869  mean percentile 0.869
+      np lost_ball: also a tracking-only flight, live            n=  154  AUC vs live completions 0.863  mean percentile 0.863
+      np travel: new row (no flight to opp/OOB), live            n=  176  AUC vs live completions 0.847  mean percentile 0.847
+      np travel: also a tracking-only flight, live               n=    4  AUC vs live completions 0.777  mean percentile 0.777
+      np off_foul: new row (no flight to opp/OOB), live          n=  205  AUC vs live completions 0.861  mean percentile 0.861
+      np off_foul: also a tracking-only flight, live             n=    3  AUC vs live completions 0.956  mean percentile 0.956
+      np other_to: new row (no flight to opp/OOB), live          n=  179  AUC vs live completions 0.822  mean percentile 0.822
+      np other_to: also a tracking-only flight, live             n=   69  AUC vs live completions 0.883  mean percentile 0.883
+   [hgb] reference = 38037 live completions
+      pbp bad-pass failures (reference)                          n=  855  AUC vs live completions 0.729  mean percentile 0.729
+      tracking-only failures, live (reference)                   n= 2748  AUC vs live completions 0.696  mean percentile 0.696
+      np lost_ball: new row (no flight to opp/OOB), live         n=  354  AUC vs live completions 0.859  mean percentile 0.859
+      np lost_ball: also a tracking-only flight, live            n=  154  AUC vs live completions 0.851  mean percentile 0.851
+      np travel: new row (no flight to opp/OOB), live            n=  176  AUC vs live completions 0.851  mean percentile 0.851
+      np travel: also a tracking-only flight, live               n=    4  AUC vs live completions 0.745  mean percentile 0.745
+      np off_foul: new row (no flight to opp/OOB), live          n=  205  AUC vs live completions 0.854  mean percentile 0.854
+      np off_foul: also a tracking-only flight, live             n=    3  AUC vs live completions 0.966  mean percentile 0.966
+      np other_to: new row (no flight to opp/OOB), live          n=  179  AUC vs live completions 0.805  mean percentile 0.805
+      np other_to: also a tracking-only flight, live             n=   69  AUC vs live completions 0.874  mean percentile 0.874
+[t5 took 9s]
