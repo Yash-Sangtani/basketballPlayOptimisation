@@ -1,0 +1,131 @@
+120 games, 229702 sampled states, 47836 completed passes with both states (95672 state rows); extraction 10.5 s/game
+target pts: mean 1.030 sd 1.135; distribution {0: 0.522, 1: 0.032, 2: 0.343, 3: 0.102, 4: 0.002, 5: 0.0}
+fit+CV 35 s
+
+== out-of-fold accuracy (GroupKFold by game, 5 folds) ==
+const  RMSE 1.1347  R2 -0.0001  mean pred 1.030 (obs 1.030)
+base   RMSE 1.1329  R2 0.0030  mean pred 1.029 (obs 1.030)
+rich   RMSE 1.1343  R2 0.0006  mean pred 1.030 (obs 1.030)
+ fold  const_rmse  const_r2  base_rmse  base_r2  rich_rmse  rich_r2
+    0      1.1200   -0.0007     1.1175   0.0038     1.1205  -0.0016
+    1      1.1353   -0.0001     1.1344   0.0014     1.1311   0.0073
+    2      1.1433   -0.0004     1.1417   0.0026     1.1446  -0.0026
+    3      1.1322   -0.0002     1.1299   0.0038     1.1323  -0.0004
+    4      1.1425   -0.0000     1.1409   0.0029     1.1428  -0.0005
+rich vs base: RMSE gain -0.0014 [-0.0030, +0.0003]  R2 gain -0.0024 [-0.0052, +0.0004]  share of resamples where rich is better: 0.051
+base vs const: RMSE gain +0.0018 [+0.0012, +0.0023]  R2 gain +0.0031 [+0.0021, +0.0041]  share of resamples where base is better: 1.000
+rich vs const: RMSE gain +0.0004 [-0.0012, +0.0020]  R2 gain +0.0007 [-0.0021, +0.0036]  share of resamples where rich is better: 0.688
+
+iterations vs pooled out-of-fold RMSE (fixed a priori setting is max_iter=150)
+         10      20      30      40      50      60      70      80      90      100     110     120     130     140     150
+rich  1.1332  1.1327  1.1325  1.1326  1.1326  1.1328  1.1329  1.1331  1.1332  1.1333  1.1336  1.1338  1.1340  1.1342  1.1343
+base  1.1331  1.1326  1.1324  1.1324  1.1324  1.1325  1.1325  1.1325  1.1326  1.1326  1.1327  1.1327  1.1328  1.1328  1.1329
+
+== calibration by decile of out-of-fold prediction: rich (slope of outcome on prediction 0.522 [0.426, 0.629]) ==
+ decile     n  mean_pred  mean_obs  obs_ci_lo  obs_ci_hi
+      1 22971      0.794     0.966      0.923      1.007
+      2 22970      0.929     0.996      0.962      1.030
+      3 22970      0.971     1.001      0.971      1.030
+      4 22970      0.999     1.007      0.981      1.033
+      5 22970      1.021     1.008      0.982      1.034
+      6 22970      1.042     1.027      1.001      1.053
+      7 22970      1.064     1.046      1.017      1.076
+      8 22970      1.090     1.053      1.023      1.082
+      9 22970      1.128     1.050      1.016      1.084
+     10 22971      1.269     1.144      1.103      1.185
+
+== calibration by decile of out-of-fold prediction: base (slope of outcome on prediction 0.736 [0.655, 0.815]) ==
+ decile     n  mean_pred  mean_obs  obs_ci_lo  obs_ci_hi
+      1 22971      0.898     0.961      0.932      0.988
+      2 22970      0.976     1.016      0.992      1.041
+      3 22970      0.998     1.037      1.012      1.061
+      4 22970      1.010     1.026      0.999      1.052
+      5 22970      1.020     1.023      0.999      1.048
+      6 22970      1.029     1.024      0.999      1.049
+      7 22970      1.039     1.006      0.984      1.028
+      8 22970      1.052     1.031      1.007      1.054
+      9 22970      1.073     1.026      1.005      1.046
+     10 22971      1.192     1.148      1.124      1.171
+
+== permutation importance (increase in held-out MSE, mean over folds) ==
+ball_dist               0.01302
+period_time_left        0.00455
+margin                  0.00290
+def_mean_basket_dist    0.00262
+closest_def             0.00259
+period                  0.00182
+shot_clock              0.00174
+holder_speed            0.00143
+ball_yn                 0.00041
+ball_xn                 0.00029
+ball_z                  0.00023
+n_off_paint             0.00004
+n_def_6                 0.00003
+second_def              0.00002
+mate_open_max           0.00000
+n_def_paint             0.00000
+off_mean_basket_dist   -0.00000
+n_def_10               -0.00001
+n_mates_open6          -0.00008
+ball_angle             -0.00009
+off_hull_area          -0.00011
+
+mean outcome and V by dist_bin
+              n    obs   pred
+dist_bin                     
+(0, 5]     3222  1.457  1.433
+(5, 10]    5730  1.084  1.082
+(10, 15]  10572  1.039  1.036
+(15, 20]  17545  1.024  1.021
+(20, 25]  31096  1.024  1.024
+(25, 30]  36221  1.016  1.018
+(30, 40]  48856  1.019  1.019
+(40, 50]  21076  1.021  1.030
+(50, 60]  16514  1.031  1.034
+(60, 95]  38870  1.021  1.023
+
+mean outcome and V by sc_bin
+              n    obs   pred
+sc_bin                       
+(0, 4]     5010  0.880  0.874
+(4, 8]    12961  0.969  0.982
+(8, 12]   28012  1.021  1.017
+(12, 16]  45923  1.018  1.023
+(16, 20]  63876  1.034  1.033
+(20, 24]  70361  1.060  1.058
+
+== pass value: delta V = V(reception) - V(release), completed passes, out-of-fold ==
+47836 passes scored (of 47836); mean dV rich +0.0265 (sd 0.087), baseline +0.0034; mean change in shot clock -0.51 s; mean change in ball distance to basket -3.62 ft
+correlation of dV(rich) with the drop in ball distance to the basket: 0.088
+
+-- dv_rich: mean by group (game-bootstrap 95% CI) --
+  A_assist                       n=  3855  mean +0.0878 [+0.0833, +0.0925]
+  B_next_shot_missed             n=  6283  mean +0.0482 [+0.0456, +0.0508]
+  C_next_shot_made_unassisted    n=  1293  mean +0.0285 [+0.0232, +0.0336]
+  D_no_shot_by_receiver          n= 36405  mean +0.0163 [+0.0154, +0.0171]
+  E_all_not_assist               n= 43981  mean +0.0212 [+0.0203, +0.0221]
+  ALL                            n= 47836  mean +0.0265 [+0.0255, +0.0276]
+-- dv_rich: contrasts (difference in mean dV, Cohen d, game-bootstrap 95% CI) --
+  A_assist - E_all_not_assist: diff +0.0666 [+0.0623, +0.0713]  d +0.778 [+0.728, +0.831]  (n 3855 vs 43981)
+  A_assist - D_no_shot_by_receiver: diff +0.0715 [+0.0671, +0.0763]  d +0.883 [+0.830, +0.941]  (n 3855 vs 36405)
+  A_assist - B_next_shot_missed: diff +0.0395 [+0.0354, +0.0439]  d +0.336 [+0.300, +0.371]  (n 3855 vs 6283)
+  A_assist - C_next_shot_made_unassisted: diff +0.0593 [+0.0524, +0.0670]  d +0.458 [+0.405, +0.518]  (n 3855 vs 1293)
+  B_next_shot_missed - D_no_shot_by_receiver: diff +0.0320 [+0.0294, +0.0346]  d +0.411 [+0.377, +0.444]  (n 6283 vs 36405)
+  C_next_shot_made_unassisted - B_next_shot_missed: diff -0.0198 [-0.0259, -0.0138]  d -0.191 [-0.250, -0.134]  (n 1293 vs 6283)
+
+-- dv_base: mean by group (game-bootstrap 95% CI) --
+  A_assist                       n=  3855  mean +0.0216 [+0.0182, +0.0251]
+  B_next_shot_missed             n=  6283  mean -0.0003 [-0.0030, +0.0023]
+  C_next_shot_made_unassisted    n=  1293  mean +0.0011 [-0.0041, +0.0061]
+  D_no_shot_by_receiver          n= 36405  mean +0.0022 [+0.0013, +0.0032]
+  E_all_not_assist               n= 43981  mean +0.0018 [+0.0009, +0.0027]
+  ALL                            n= 47836  mean +0.0034 [+0.0026, +0.0043]
+-- dv_base: contrasts (difference in mean dV, Cohen d, game-bootstrap 95% CI) --
+  A_assist - E_all_not_assist: diff +0.0198 [+0.0162, +0.0233]  d +0.227 [+0.186, +0.268]  (n 3855 vs 43981)
+  A_assist - D_no_shot_by_receiver: diff +0.0194 [+0.0157, +0.0230]  d +0.228 [+0.186, +0.271]  (n 3855 vs 36405)
+  A_assist - B_next_shot_missed: diff +0.0220 [+0.0177, +0.0262]  d +0.203 [+0.163, +0.242]  (n 3855 vs 6283)
+  A_assist - C_next_shot_made_unassisted: diff +0.0206 [+0.0144, +0.0267]  d +0.180 [+0.126, +0.232]  (n 3855 vs 1293)
+  B_next_shot_missed - D_no_shot_by_receiver: diff -0.0026 [-0.0053, +0.0001]  d -0.031 [-0.064, +0.001]  (n 6283 vs 36405)
+  C_next_shot_made_unassisted - B_next_shot_missed: diff +0.0014 [-0.0046, +0.0075]  d +0.014 [-0.047, +0.075]  (n 1293 vs 6283)
+
+total 39 s

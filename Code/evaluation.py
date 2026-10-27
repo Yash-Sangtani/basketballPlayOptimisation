@@ -101,6 +101,7 @@ class Dataset:
     features: list[str]
     outcome: np.ndarray        #meta.outcome, for sanity checks and reporting only, never a feature
     info: dict = field(default_factory=dict)
+    live: np.ndarray | None = None   #meta.live (True = clock running and passer in bounds), None for older pickles
 
     @property
     def games(self) -> np.ndarray:
@@ -123,7 +124,7 @@ def load_games(pickle_dir: str, games: list[str], check_status: bool = True) -> 
         raise FileNotFoundError(f"{pickle_dir}/_status.csv not found (pass check_status=False to skip that check)")
     skipped = {'no_pickle': [], 'no_meta': [], 'status_not_ok': []}
     versions: dict[str, int] = {}
-    Xs, ys, gs, outs = [], [], [], []
+    Xs, ys, gs, outs, lives = [], [], [], [], []
     for game in games:
         fn = game_to_pickle_name(game)
         fp, mp = os.path.join(pickle_dir, fn), os.path.join(pickle_dir, 'meta', fn)
@@ -153,10 +154,12 @@ def load_games(pickle_dir: str, games: list[str], check_status: bool = True) -> 
         ys.append((ps == 0).astype(np.int8))
         gs.append(np.full(len(df), game))
         outs.append(meta['outcome'].astype(str).to_numpy())
+        lives.append(meta['live'].to_numpy(bool) if 'live' in meta else None)
     if not Xs:
         raise ValueError(f"no usable games in {pickle_dir} for the {len(games)} requested "
                          f"(skipped: { {k: len(v) for k, v in skipped.items()} })")
-    ds = Dataset(np.vstack(Xs), np.concatenate(ys), np.concatenate(gs), list(FEATURES), np.concatenate(outs))
+    ds = Dataset(np.vstack(Xs), np.concatenate(ys), np.concatenate(gs), list(FEATURES), np.concatenate(outs),
+                 live=np.concatenate(lives) if all(l is not None for l in lives) else None)
     #The label must agree with the detector's outcome column (completed <=> pass_successful == 1).
     ds.info = dict(requested=len(games), skipped=skipped, versions=versions,
                    label_outcome_mismatch=int(((ds.outcome != 'completed').astype(np.int8) != ds.y).sum()))
@@ -164,22 +167,31 @@ def load_games(pickle_dir: str, games: list[str], check_status: bool = True) -> 
 
 
 def restrict_population(ds: Dataset, population: str) -> Dataset:
-    """'all' (default) or 'frontcourt' (backcourt == 0; the then-constant column is dropped)."""
+    """'all' (default); 'frontcourt' (backcourt == 0; the then-constant column is dropped); 'live' (meta.live: clock
+    running and the passer in bounds, i.e. no dead-ball or inbound passes; needs pickles that carry it); or
+    'live_frontcourt' (both)."""
     if population == 'all':
         return ds
-    if population != 'frontcourt':
+    if population not in ('frontcourt', 'live', 'live_frontcourt'):
         raise ValueError(f"unknown population {population!r}")
-    j = ds.features.index('backcourt')
-    keep = ds.X[:, j] == 0
-    cols = [i for i in range(len(ds.features)) if i != j]
+    keep = np.ones(len(ds.y), bool)
+    if population in ('live', 'live_frontcourt'):
+        if ds.live is None:
+            raise ValueError("these pickles have no meta.live column (made by code before the WS4 regeneration)")
+        keep &= ds.live
+    cols = list(range(len(ds.features)))
+    if population in ('frontcourt', 'live_frontcourt'):
+        j = ds.features.index('backcourt')
+        keep &= ds.X[:, j] == 0
+        cols = [i for i in cols if i != j]
     return Dataset(ds.X[keep][:, cols], ds.y[keep], ds.g[keep], [ds.features[i] for i in cols],
-                   ds.outcome[keep], dict(ds.info, population='frontcourt'))
+                   ds.outcome[keep], dict(ds.info, population=population), None if ds.live is None else ds.live[keep])
 
 
 def restrict_features(ds: Dataset, names: list[str]) -> Dataset:
     """Keep only the named feature columns (all must exist)."""
     cols = [ds.features.index(n) for n in names]
-    return Dataset(ds.X[:, cols], ds.y, ds.g, list(names), ds.outcome, dict(ds.info, feature_set=list(names)))
+    return Dataset(ds.X[:, cols], ds.y, ds.g, list(names), ds.outcome, dict(ds.info, feature_set=list(names)), ds.live)
 
 
 def dataset_diagnostics(ds: Dataset) -> dict:

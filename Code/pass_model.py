@@ -58,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
                    help="group: shuffled GroupKFold by game (default). date: contiguous blocks of games in date order")
     p.add_argument('--feature-set', choices=['all', 'passer'], default='all',
                    help="all: the 15 features. passer: only the 5 target-independent ones (ablation; drops the 'simple' baseline)")
-    p.add_argument('--population', choices=['all', 'frontcourt'], default='all')
+    p.add_argument('--population', choices=['all', 'frontcourt', 'live', 'live_frontcourt'], default='all')
     p.add_argument('--dev-list', default=os.path.join(ev.SPLIT_DIR, 'dev_games.txt'))
     p.add_argument('--test-list', default=os.path.join(ev.SPLIT_DIR, 'test_games.txt'))
     p.add_argument('--ignore-status', action='store_true', help='do not require an ok row in _status.csv for each game')

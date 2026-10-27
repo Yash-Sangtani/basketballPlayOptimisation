@@ -263,7 +263,7 @@ def main():
     P['group'] = np.select([P.assist, (~P.assist) & P.receiver_shoots_next & (P.next_made == 0),
                             (~P.assist) & P.receiver_shoots_next & (P.next_made == 1)],
                            ['A_assist', 'B_next_shot_missed', 'C_next_shot_made_unassisted'], 'D_no_shot_by_receiver')
-    P.to_csv('/private/tmp/ws5b/pass_dv.csv.gz', index=False)
+    P.to_csv(os.path.join(a.reports, 'ws5b-pass-dv.csv.gz'), index=False)
     print(f'{len(P)} passes scored (of {len(pm)}); mean dV rich {P.dv_rich.mean():+.4f} (sd {P.dv_rich.std():.3f}), '
           f'baseline {P.dv_base.mean():+.4f}; mean change in shot clock {P.d_shot_clock.mean():+.2f} s; '
           f'mean change in ball distance to basket {P.d_ball_dist.mean():+.2f} ft')

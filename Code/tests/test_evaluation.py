@@ -260,6 +260,20 @@ def test_population_frontcourt_drops_constant_column(tmp_path):
     assert 'backcourt' not in fc.features and fc.X.shape[1] == 14 and len(fc.y) < len(ds.y)
 
 
+def test_population_live_needs_meta_live_and_filters(tmp_path):
+    games = syn.game_names(3, '07')
+    d = str(tmp_path / 'pk'); syn.write_pickle_dir(d, games)
+    ds = ev.load_games(d, games)
+    assert ds.live is None
+    with pytest.raises(ValueError):
+        ev.restrict_population(ds, 'live')
+    ds.live = np.arange(len(ds.y)) % 3 != 0            # pretend a third of the rows are dead-ball / inbound
+    lv = ev.restrict_population(ds, 'live')
+    assert len(lv.y) == int(ds.live.sum()) and lv.live.all() and lv.features == ds.features
+    both = ev.restrict_population(ds, 'live_frontcourt')
+    assert 'backcourt' not in both.features and len(both.y) <= len(lv.y)
+
+
 # ---------------------------------------------------------------- MLP (skipped if TensorFlow/Keras is unavailable)
 def test_mlp_is_seeded_and_validates_by_game(arrays):
     pytest.importorskip('keras')
