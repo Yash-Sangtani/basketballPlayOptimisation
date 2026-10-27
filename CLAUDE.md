@@ -14,9 +14,28 @@ The two pipelines don't share code — each has its own copy of the
 tracking-data-loading logic (`Code/getting_data.py`'s `get_data` vs
 `Shots/simulate.py`'s `Game`) — but both read from the same `Tracking_Data/`.
 
-## Current status — read this first when resuming (last updated 2026-10-19)
+## Current status — read this first when resuming (last updated 2026-10-27)
 
-> **2026-10-27: see `HANDOFF.md` first.** It holds the latest state (all branches merged into `main`, what is finished, what was never run, the next steps and the cloud setup). The text below is the 2026-10-19 status and is still accurate for the detection design, validation and data facts.
+### State on 2026-10-27 (cloud session; supersedes the numbers in the 2026-10-19 section below where they differ)
+Work is on `main` (pushed). Reports: `reports/ws2-eval.md` (evaluation), `reports/ws3-selection.md` (is the signal selection?), `reports/ws4-detection.md` (what changed, new dataset, the one test run), `reports/ws5b-value-review.md` (value-model MVP), `reports/ws5a-shots.md` (Shots cleanup). Tests: `cd Code && ../.venv/bin/python -m pytest -q .` (47 pass) and `Shots/` tests (31 + 1 opt-in).
+
+**Dataset.** Code version `fc2ceb29` (the WS4 regeneration; `a846f643` is the earlier baseline, kept locally in `Tracking_Data/pass_features_baseline_a846f643/` and on the `baseline-results` branch). 631 games ok, 5 known-bad failed, 306,782 passes, 5,025 failures: detection is unchanged from `a846f643` (the `actual/` copy equals the old pickles). What changed: the main pickles use the **heading receiver rule for both classes** (`features(target_mode='heading')`, default), `actual/` holds the old true-receiver version, and `meta` has `clock_running`, `inbound`, `live`. `pass_model.py --population live` excludes dead-ball and inbound passes.
+
+**Frozen split.** `Code/splits/dev_games.txt` (501) / `test_games.txt` (130). The test split was scored once (2026-10-27) with heading features, live population: ROC 0.804 / 0.809 / 0.820 (logistic / gboost / MLP), PR-AUC 0.073 / 0.075 / 0.081 against 0.019 base rate (`reports/ws4-detection.md`). Do not tune on it again; any further model change needs a fresh held-out set or must be treated as dev work.
+
+**What the results mean (measured unless marked).**
+- The old headline (ROC 0.85-0.87, PR 0.10-0.13) was inflated by two construction effects: failures have an inferred receiver while completions use the true one (about 0.025 ROC and 40% of PR-AUC), and 17.6% of completions are dead-ball/inbound passes versus 2.4% of failures. Honest dev numbers: ROC 0.81-0.83, PR 0.078-0.088 (live, heading).
+- The signal is not a label-shuffle artifact and holds against same-team, same-game matched completions, but **it is not pass difficulty**: lost balls, travels and offensive fouls (not passes) score as high or higher under the bad-pass model (ROC 0.85-0.89), and phase/location features alone give ROC 0.82. Read it as a risk ranking of releases in turnover-prone situations (`ws3-selection.md`).
+- Tracking-only failure labels are not a usable alternative (75% are shots, rebounds or dead balls).
+- Detection thresholds: a sweep on 24 dev games found no change that raises assist recall by more than 2.6 points without adding hand-off-like flights, so none was made. Assist recall remains 67-81%.
+- Model ranking: MLP > gradient boosting ~ logistic (the MLP edge is +0.02 ROC); the sklearn `GradientBoostingClassifier` used by `pass_model.py` is weaker than a tuned `HistGradientBoosting` (0.871 vs 0.854 ROC on the old data), so do not read the gboost row as the ceiling.
+- Value model MVP (120 dev games): the pipeline runs, but V(s) has R^2 0.0006-0.003 and the rich features add nothing over shot clock + ball position; do not use delta-V for recommendations (`ws5b-value-review.md`).
+
+**Cloud setup that worked (Linux, 4 cores, 15 GB):** `apt-get install -y p7zip-full`; `python3 -m venv .venv && .venv/bin/pip install pandas numpy scikit-learn scipy matplotlib tqdm tensorflow pytest`. Restore the dataset from `git checkout origin/baseline-results -- Tracking_Data/pass_features` (this is the OLD `a846f643` version; regenerate with `cd Code && ../.venv/bin/python passtracking.py ../Shots/allgames.txt`, about 12 min with 3 processes on disjoint game lists, 35 min serial). Careful: `git checkout <branch> -- <path>` stages the files; unstage them (`git reset -q HEAD Tracking_Data`) before committing, they are git-ignored data. `pkill -f <name>` also matches your own shell if the name is in its command line.
+
+**Next steps (nothing started):** (1) decide whether the failed-pass model is still wanted given T5 (it ranks turnover risk, not pass quality); a clean pass-quality label needs something other than pbp turnovers; (2) a usable V(s) needs a better target and a shot-value model (Dhruv's trained models do not exist in the repo); (3) detection recall needs new rules (hand-offs, teammate-touch passes), not new thresholds; (4) open owner questions below are still open.
+
+### Status as of 2026-10-19 (historic; the detection design and validation below are still accurate, the model numbers are superseded by the above)
 
 **Bottom line:** on 2026-10-19 the passing pipeline (`Code/passtracking.py`) was
 rewritten after an audit showed the old dataset did not measure pass
