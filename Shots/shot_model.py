@@ -1,12 +1,21 @@
+"""
+Trains the shot-make model on the per-game pickles in sfeatures/ (written by shot_tracking.py).
+
+Run it as a script: ``python shot_model.py``. Importing it does nothing (it used to train on
+import and needed TensorFlow). Saves shot_model_v2.keras and the scaler .npy files to
+config.model_dir().
+"""
+
 import os
 import numpy as np
-import tensorflow as tf
 import pickle
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
+
+import config
 
 
 # Function to load shot_features1 and labels
@@ -15,8 +24,9 @@ def load_data():
     labels = []
 
     # Load shot_features1 from all files in the directory
-    for filename in tqdm(os.listdir('./sfeatures')):
-        with open(os.path.join('./sfeatures', filename), 'rb') as f:
+    sfeatures_dir = config.sfeatures_dir()
+    for filename in tqdm(os.listdir(sfeatures_dir)):
+        with open(os.path.join(sfeatures_dir, filename), 'rb') as f:
             data = pickle.load(f)[1:]
 
             # Convert data to a numpy array
@@ -51,99 +61,107 @@ def preprocess_data(features, labels):
     features[:, [0, 1, 4, 5, 7, 8, 9, 10]] = scaler.fit_transform(features[:, [0, 1, 4, 5, 7, 8, 9, 10]])
 
     # Save the scaler's mean and scale parameters
-    np.save('shot_scaler_mean.npy', scaler.mean_)
-    np.save('shot_scaler_scale.npy', scaler.scale_)
+    os.makedirs(config.model_dir(), exist_ok=True)
+    np.save(config.model_path('shot_scaler_mean.npy'), scaler.mean_)
+    np.save(config.model_path('shot_scaler_scale.npy'), scaler.scale_)
 
     return features, labels
 
 
-# Load shot_features1 and labels
-features, labels = load_data()
+def main():
+    import tensorflow as tf  # imported here so that importing this module does not load TensorFlow
 
-# Preprocess the data
-features, labels = preprocess_data(features, labels)
+    # Load shot_features1 and labels
+    features, labels = load_data()
 
-# Save 1 instance of a feature vector and label randomly to test the model in the end
-random_index = np.random.randint(0, features.shape[0])
-random_feature = features[random_index]
-random_label = labels[random_index]
+    # Preprocess the data
+    features, labels = preprocess_data(features, labels)
 
-# Split the data into training and testing sets based on the labels
-train_features, test_features, train_labels, test_labels = train_test_split(features, labels, test_size=0.2,
-                                                                            random_state=42)
+    # Save 1 instance of a feature vector and label randomly to test the model in the end
+    random_index = np.random.randint(0, features.shape[0])
+    random_feature = features[random_index]
+    random_label = labels[random_index]
 
-# Define the custom optimizer with a different learning rate
-custom_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    # Split the data into training and testing sets based on the labels
+    train_features, test_features, train_labels, test_labels = train_test_split(features, labels, test_size=0.2,
+                                                                                random_state=42)
 
-# Define the model architecture with a leaky ReLU activation function
-# The model has 4 hidden layers with 512 units each and a dropout layer with a dropout rate of 0.2
-# The output layer has 1 unit with a sigmoid activation function
-# The sigmoid layer is used to convert the output to a probability
-model = tf.keras.Sequential([
-    tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
-    tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
-    tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
-    tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
-    tf.keras.layers.Dropout(0.2),
-    tf.keras.layers.Dense(1, activation='sigmoid')
-])
+    # Define the custom optimizer with a different learning rate
+    custom_optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
 
-# Compile the model with the custom optimizer
-model.compile(optimizer=custom_optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+    # Define the model architecture with a leaky ReLU activation function
+    # The model has 4 hidden layers with 512 units each and a dropout layer with a dropout rate of 0.2
+    # The output layer has 1 unit with a sigmoid activation function
+    # The sigmoid layer is used to convert the output to a probability
+    model = tf.keras.Sequential([
+        tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(512, activation=tf.nn.leaky_relu),
+        tf.keras.layers.Dropout(0.2),
+        tf.keras.layers.Dense(1, activation='sigmoid')
+    ])
 
-# Train the model
-model.fit(train_features, train_labels, epochs=10, batch_size=32, validation_split=0.2)
+    # Compile the model with the custom optimizer
+    model.compile(optimizer=custom_optimizer, loss='binary_crossentropy', metrics=['accuracy'])
 
-# Plot the training and validation accuracy
-plt.plot(model.history.history['accuracy'])
-plt.plot(model.history.history['val_accuracy'])
-plt.title('Model Accuracy')
-plt.ylabel('Accuracy')
-plt.xlabel('Epoch')
-plt.legend(['Train', 'Validation'], loc='upper left')
-plt.show()
+    # Train the model
+    model.fit(train_features, train_labels, epochs=10, batch_size=32, validation_split=0.2)
 
-# Evaluate the model on the testing set
-loss, accuracy = model.evaluate(test_features, test_labels)
-print("Model Loss:", loss)
-print("Model Accuracy:", accuracy)
-print(model.summary())
+    # Plot the training and validation accuracy
+    plt.plot(model.history.history['accuracy'])
+    plt.plot(model.history.history['val_accuracy'])
+    plt.title('Model Accuracy')
+    plt.ylabel('Accuracy')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Validation'], loc='upper left')
+    plt.show()
 
-# Make an ROC curve
-predictions = model.predict(test_features).ravel()
+    # Evaluate the model on the testing set
+    loss, accuracy = model.evaluate(test_features, test_labels)
+    print("Model Loss:", loss)
+    print("Model Accuracy:", accuracy)
+    print(model.summary())
 
-# Compute ROC curve
-fpr, tpr, thresholds = roc_curve(test_labels, predictions)
+    # Make an ROC curve
+    predictions = model.predict(test_features).ravel()
 
-# Compute AUC
-roc_auc = auc(fpr, tpr)
+    # Compute ROC curve
+    fpr, tpr, thresholds = roc_curve(test_labels, predictions)
 
-# Plot ROC curve
-plt.figure()
-plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
-plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
-plt.xlim([0.0, 1.0])
-plt.ylim([0.0, 1.05])
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('Receiver Operating Characteristic (ROC) Curve')
-plt.legend(loc="lower right")
-plt.show()
+    # Compute AUC
+    roc_auc = auc(fpr, tpr)
 
-# Test the model on a random feature vector
-random_feature = random_feature.reshape(1, -1)
-random_label = random_label.reshape(1, -1)
+    # Plot ROC curve
+    plt.figure()
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.legend(loc="lower right")
+    plt.show()
 
-# Predict the label for the random feature vector
-prediction = model.predict(random_feature)
+    # Test the model on a random feature vector
+    random_feature = random_feature.reshape(1, -1)
+    random_label = random_label.reshape(1, -1)
 
-# Print the actual label and the predicted label
-print("Actual Label:", random_label)
-print("Predicted Label:", prediction)
+    # Predict the label for the random feature vector
+    prediction = model.predict(random_feature)
 
-# Save the model
+    # Print the actual label and the predicted label
+    print("Actual Label:", random_label)
+    print("Predicted Label:", prediction)
 
-model.save('shot_model_v2.keras')
+    # Save the model
+    os.makedirs(config.model_dir(), exist_ok=True)
+    model.save(str(config.model_path('shot_model_v2.keras')))
+
+
+if __name__ == '__main__':
+    main()

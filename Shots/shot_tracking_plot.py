@@ -6,24 +6,47 @@ import numpy as np
 import pandas as pd
 import pickle
 from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
 
-# To get the offensive rating of the shooter and the defensive rating of the closest defender
-ratings = pd.read_csv('C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/player'
-                      '/player_ratings.csv')
+import config
+from court import COURT_CENTER, LEFT_BASKET, RIGHT_BASKET, assert_raw_y
 
-fg_percentage_zones = pd.read_csv(
-    'C:/Users/Dhruv/PycharmProjects/basketballPlayOptimisation/Tracking_Data/player/player_shot_percentages.csv')
+# Importing this module has no side effects: TensorFlow is imported, and the reference tables and
+# trained models are read, only when a function that needs them is called. The trained models are
+# NOT tracked in git; train them with shot_model.py / zone_model.py (see config.py for where they
+# are looked up).
+
+_TABLES = None
+
+
+def _tables():
+    """
+    Load (once) the reference tables: (ratings, fg_percentage_zones).
+    ratings: offensive rating of the shooter and defensive rating of the closest defender.
+    """
+    global _TABLES
+    if _TABLES is None:
+        _TABLES = (pd.read_csv(config.ratings_path()),
+                   pd.read_csv(config.player_shot_percentages_path()))
+    return _TABLES
+
+
+def _tensorflow():
+    import tensorflow as tf
+    return tf
 
 
 def load_model_and_predict(feature_vector):
+    # Fail with a clear message (naming every missing file) before importing TensorFlow
+    config.require_model_files(config.SHOT_MODEL_FILES, 'Shots/shot_model.py')
+    tf = _tensorflow()
+
     # Load the trained model
-    model = tf.keras.models.load_model('shot_model_v2.keras')
+    model = tf.keras.models.load_model(str(config.model_path('shot_model_v2.keras')))
 
     # Load the scaler used for normalization and set its mean and scale directly
     scaler = StandardScaler()
-    scaler.mean_ = np.load('shot_scaler_mean.npy')
-    scaler.scale_ = np.load('shot_scaler_scale.npy')
+    scaler.mean_ = np.load(config.model_path('shot_scaler_mean.npy'))
+    scaler.scale_ = np.load(config.model_path('shot_scaler_scale.npy'))
 
     # Ensure feature_vector is numpy array and 2D
     feature_vector = np.array(feature_vector, dtype=np.float32)
@@ -43,15 +66,22 @@ def load_model_and_predict(feature_vector):
 
 
 def predict_output(feature_vector):
+    # Fail with a clear message (naming every missing file) before importing TensorFlow
+    config.require_model_files(config.ZONE_MODEL_FILES, 'Shots/zone_model.py')
+    tf = _tensorflow()
+
     # Load the encoders
-    encoder_shot_zone = pickle.load(open('encoder_shot_zone.pkl', 'rb'))
-    encoder_shot_area = pickle.load(open('encoder_shot_area.pkl', 'rb'))
-    encoder_shot_range = pickle.load(open('encoder_shot_range.pkl', 'rb'))
+    with open(config.model_path('encoder_shot_zone.pkl'), 'rb') as f:
+        encoder_shot_zone = pickle.load(f)
+    with open(config.model_path('encoder_shot_area.pkl'), 'rb') as f:
+        encoder_shot_area = pickle.load(f)
+    with open(config.model_path('encoder_shot_range.pkl'), 'rb') as f:
+        encoder_shot_range = pickle.load(f)
 
     # Load the scaler
     scaler = StandardScaler()
-    scaler.mean_ = np.load('zone_scaler_mean.npy')
-    scaler.scale_ = np.load('zone_scaler_scale.npy')
+    scaler.mean_ = np.load(config.model_path('zone_scaler_mean.npy'))
+    scaler.scale_ = np.load(config.model_path('zone_scaler_scale.npy'))
 
     # Coverting the feature vector to a numpy array
     feature_vector = np.array(feature_vector)
@@ -65,7 +95,7 @@ def predict_output(feature_vector):
     feature_vector = feature_vector.reshape(1, -1)
 
     # Predict using the model
-    model = tf.keras.models.load_model('zone_model_v2.keras')
+    model = tf.keras.models.load_model(str(config.model_path('zone_model_v2.keras')))
 
     predictions = model.predict(feature_vector)
 
@@ -83,8 +113,10 @@ def extract_shot_probability(game, details, previous_details):
 
     Args:
     game: Game object containing the tracking data and the play by play data of the game
-    details: List containing the details of the moment in the game
-    previous_details: List containing the details of the previous moment in the game
+    details: List containing the details of the moment in the game, from
+        game._get_moment_details(frame, raw=True): RAW court coordinates (y in [0, 50]). Not the
+        plot-frame details (y - 50), which put every player ~50 ft from the baskets used here.
+    previous_details: List containing the details of the previous moment in the game (also raw)
 
     Returns:
     shot_probability: The probability of the shot going in for all the offensive players ->[[player1, probability1],...]
@@ -95,6 +127,9 @@ def extract_shot_probability(game, details, previous_details):
     # Check if the details are valid
     if len(details[1]) != len(previous_details[1]) or len(details[1]) != 11:
         return shot_probability
+    assert_raw_y(details[2], 'extract_shot_probability(details)')
+    assert_raw_y(previous_details[2], 'extract_shot_probability(previous_details)')
+    ratings, fg_percentage_zones = _tables()
 
     # Get the id of the shooter
     ball = [details[1][0], details[2][0]]
@@ -114,7 +149,7 @@ def extract_shot_probability(game, details, previous_details):
     home_team_ids = [i for i in details[10] if i in list(game.player_ids.values())[:13]]
     away_team_ids = [i for i in details[10] if i in list(game.player_ids.values())[13:]]
 
-    # Get the offensive team and determine the basket coordinates [5.35, -25] or [88.65, -25]
+    # Get the offensive team and determine the basket coordinates [5.35, 25] or [88.65, 25] (raw court coordinates)
     if ball_handler in home_team_ids:
         offensive_team = home_team_ids
         defensive_team = away_team_ids
@@ -146,27 +181,27 @@ def extract_shot_probability(game, details, previous_details):
 
     if game.flip_direction:
         if (x_pos < 47).all() and quarter in [1, 2] and offensive_team == away_team_ids:  # away
-            basket = [5.35, -25]
+            basket = list(LEFT_BASKET)
         if (x_pos > 47).all() and quarter in [3, 4] and offensive_team == away_team_ids:  # away
-            basket = [88.65, -25]
+            basket = list(RIGHT_BASKET)
         if (x_pos < 47).all() and quarter in [3, 4] and offensive_team == home_team_ids:  # home
-            basket = [5.35, -25]
+            basket = list(LEFT_BASKET)
         if (x_pos > 47).all() and quarter in [1, 2] and offensive_team == home_team_ids:
-            basket = [88.65, -25]
+            basket = list(RIGHT_BASKET)
 
     if (x_pos > 47).all() and quarter in [1, 2] and offensive_team == away_team_ids:  # away
-        basket = [5.35, -25]
+        basket = list(LEFT_BASKET)
     if (x_pos < 47).all() and quarter in [3, 4] and offensive_team == away_team_ids:  # away
-        basket = [88.65, -25]
+        basket = list(RIGHT_BASKET)
     if (x_pos > 47).all() and quarter in [3, 4] and offensive_team == home_team_ids:  # home
-        basket = [5.35, -25]
+        basket = list(LEFT_BASKET)
     if (x_pos < 47).all() and quarter in [1, 2] and offensive_team == home_team_ids:  #home
-        basket = [88.65, -25]
+        basket = list(RIGHT_BASKET)
 
     if basket is None:
         return shot_probability
 
-    court_center = [47, -25]  # Assuming this is the center of the court along the x-axis
+    court_center = list(COURT_CENTER)  # center of the court, [47, 25] in raw coordinates
 
     # Get the score margin of the game
     score_margin = None

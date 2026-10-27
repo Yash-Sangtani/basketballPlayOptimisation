@@ -6,9 +6,14 @@ import os
 import pickle
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 import pandas as pd
 from simulate import Game
+
+
+def _seaborn():
+    """seaborn is only needed by the plotting functions, so it is imported when one is called."""
+    import seaborn as sns
+    return sns
 
 
 def extract_games():
@@ -105,6 +110,7 @@ def plot_velocity_frame(game, frame_number, ax, highlight_player=None):
     Returns: plt.fig of frame from game with subplot of velocity.
         see README.md for example
     """
+    sns = _seaborn()
     (game_time, x_pos, y_pos, colors, sizes,
      quarter, shot_clock, game_clock, edges,
      universe_time) = game._get_moment_details(frame_number,
@@ -459,6 +465,7 @@ def velocity_plots(df):
         None
         Saves plots to examples/
     """
+    sns = _seaborn()
 
     # Organize velocity data
     home = df[[0, 2, 5, 7]]
@@ -511,6 +518,7 @@ def fatigue_plots(df):
         None
         Saves plots to examples/
     """
+    sns = _seaborn()
     plt.figure()
     sns.swarmplot(x='variable', y='value',
                   data=df[df.Pos == 'Off'][df.Tm == 'IND'])
