@@ -35,6 +35,16 @@ hold), identically for both classes. The target of a completed pass is the
 receiver; the target of a failed pass is the teammate the ball was heading
 towards (`target_heading`, from the ball's first HEAD_FRAMES frames of flight).
 The heading rule is also run on completed passes so its accuracy is known.
+
+Receiver rule in the saved features (changed in the WS4 regeneration): a failed
+pass never has a real receiver, so using the true receiver for completions made
+the receiver-dependent features differ in kind between the classes (WS3 T1: that
+alone is worth about 0.025 ROC and 40% of the PR-AUC). `features` now defaults to
+target_mode='heading' (the heading rule for BOTH classes) and the batch writes
+that as the main pickles; the 'actual' version is written to pass_features/actual/.
+Each pass also carries `clock_running`, `inbound` and `live` (clock running and
+the passer in bounds, i.e. not a dead-ball or inbound pass) so the evaluation can
+restrict to live passes; rows are not dropped here.
 """
 
 np.seterr(divide='ignore', invalid='ignore')
@@ -250,7 +260,34 @@ class PassTracking:
                     team_passer=team, team_target=team_target, backcourt=backcourt,
                     target_inferred=not success, target_heading=heading,
                     outcome=outcome, flight_s=float(fr['ut'][end] - fr['ut'][r]),
-                    basket_x=None if basket is None else basket[0])
+                    basket_x=None if basket is None else basket[0],
+                    **self._live_flags(r, passer))
+
+    def _clock_running(self, r):
+        """1.0 if the period clock ticks over +-12 frames of the same gap-free block around r, 0.0 if it is
+        stopped (dead ball), NaN if it cannot be told."""
+        fr = self._fr
+        a, b = max(r - 12, 0), min(r + 12, fr['n'] - 1)
+        while a < r and fr['block'][a] != fr['block'][r]:
+            a += 1
+        while b > r and fr['block'][b] != fr['block'][r]:
+            b -= 1
+        dt = fr['ut'][b] - fr['ut'][a]
+        if dt < 0.3:
+            return np.nan
+        return float((fr['qt'][a] - fr['qt'][b]) >= 0.5 * dt)
+
+    def _live_flags(self, r, passer):
+        """clock_running, inbound (passer outside the court lines at release, as on an inbound pass) and
+        live = not a stopped clock and not an inbound. Unknown values count as live."""
+        fr = self._fr
+        running = self._clock_running(r)
+        inbound = np.nan
+        xy = fr['xy'][r][fr['pid'][r] == passer]
+        if len(xy) and not np.isnan(xy[0]).any():
+            px, py = xy[0]
+            inbound = float(px < -0.5 or px > 94.5 or py < -0.5 or py > 50.5)
+        return dict(clock_running=running, inbound=inbound, live=bool(running != 0 and inbound != 1))
 
     def _flight_ok(self, r, end, check_oob=True):
         """The one filter both classes must pass, so failures can't be told apart
@@ -380,12 +417,17 @@ class PassTracking:
 
 class features:
 
-    def __init__(self, date, home, away, target_mode='actual'):
-        """target_mode: 'actual' uses the real receiver of completed passes
-        (and the heading-inferred teammate for failed ones); 'heading' uses the
-        heading-inferred teammate for both classes."""
-        self.passes = PassTracking(date, home, away)
-        self.passes.track_passes()
+    def __init__(self, date, home, away, target_mode='heading', passes=None):
+        """target_mode: 'heading' (default) uses the heading-inferred teammate for
+        both classes, so the receiver-dependent features are built the same way for
+        completed and failed passes; 'actual' uses the real receiver of completed
+        passes (and the heading-inferred teammate for failed ones), which makes the
+        classes differ in kind (see WS3 T1). `passes` is an already tracked
+        PassTracking to reuse (the batch builds both modes from one tracking run)."""
+        if passes is None:
+            passes = PassTracking(date, home, away)
+            passes.track_passes()
+        self.passes = passes
         self.target_mode = target_mode
         self.features = pd.DataFrame(self.passes.pass_attempt[['shot_clock', 'pass_successful', 'backcourt']])
         self.meta = None
@@ -471,7 +513,8 @@ class features:
             metas.append(dict(game_id=int(self.passes.game_id), quarter=row['quarter'],
                               game_time=row['game_time'], frame=r, passer=passer, target=target,
                               team_passer=team, target_inferred=bool(row['target_inferred']),
-                              target_mode=self.target_mode, outcome=row['outcome']))
+                              target_mode=self.target_mode, outcome=row['outcome'],
+                              clock_running=row['clock_running'], inbound=row['inbound'], live=bool(row['live'])))
             valid_index.append(index)
 
         self.features = pd.DataFrame(feats, index=valid_index).astype(float)
@@ -533,8 +576,10 @@ def process_features(date_away_home):
     start = time.perf_counter()
     try:
         os.makedirs(OUT_DIR, exist_ok=True)
-        feature = features(date, home, away)
+        feature = features(date, home, away)                         #heading rule for both classes: the main pickles
         feature.features_extraction()
+        actual = features(date, home, away, target_mode='actual', passes=feature.passes)
+        actual.features_extraction()                                #true receiver for completions: pass_features/actual/
         #Per-game metadata (game, quarter, game_time, frame, passer, target, outcome, ...) goes in
         #pass_features/meta/, so pooled models can group by game. Written first; the features
         #pickle is the "done" marker, so a kill in between just redoes the game.
@@ -542,6 +587,12 @@ def process_features(date_away_home):
         os.makedirs(os.path.dirname(meta_out), exist_ok=True)
         feature.meta.assign(game=game).to_pickle(meta_out + '.tmp')
         os.replace(meta_out + '.tmp', meta_out)
+        for sub, f in (('actual', actual),):
+            for kind, frame in (('', f.features), ('meta/', f.meta.assign(game=game))):
+                path = f'{OUT_DIR}/{sub}/{kind}{date}.{away}.{home}.pkl'
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                frame.to_pickle(path + '.tmp')
+                os.replace(path + '.tmp', path)
         feature.features.to_pickle(out + '.tmp')
         os.replace(out + '.tmp', out)
         log_status(game, 'ok', len(feature.features), time.perf_counter() - start)
