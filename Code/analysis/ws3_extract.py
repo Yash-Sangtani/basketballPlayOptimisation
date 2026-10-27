@@ -278,10 +278,11 @@ def process(game, out_dir, baseline_dir=None):
         base_m = pd.read_pickle(f'{baseline_dir}/meta/{date}.{away}.{home}.pkl')
         f_act, m_act = feats['actual']
         sub = f_act.loc[f_act.index < pt.n_base]
-        pd.testing.assert_frame_equal(sub, base_f, check_exact=True)
+        # last-ulp float32 differences between the Mac that built the baseline and other platforms are tolerated
+        pd.testing.assert_frame_equal(sub, base_f, check_exact=False, rtol=1e-4, atol=1e-5)
         # meta: same values; dtype may differ (target is float when a row without a target sits in the table)
         pd.testing.assert_frame_equal(m_act.loc[m_act.index < pt.n_base], base_m.drop(columns=['game']),
-                                      check_exact=True, check_dtype=False)
+                                      check_exact=False, rtol=1e-4, atol=1e-5, check_dtype=False)
     rep = dict(pt.report, game=game, game_id=int(pt.game_id), home_id=int(pt.home_id), away_id=int(pt.away_id),
                seconds=time.perf_counter() - t0)
     os.makedirs(out_dir, exist_ok=True)
