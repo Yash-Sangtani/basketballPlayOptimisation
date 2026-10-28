@@ -14,6 +14,7 @@ The model was trained on live-ball passes only (not inbounds, not dead balls) an
 of a pass thrown now from the given state; it says nothing about what the receiver does next.
 Passes shorter than 1 ft (hand-offs) have no defined geometry: they are returned as p_complete = 1.0, extrapolated=True.
 """
+import json
 import os
 import sys
 
@@ -26,6 +27,7 @@ sys.path.insert(0, HERE)
 from pass_features import pass_features   # noqa: E402
 
 DEFAULT_MODEL = os.path.join(HERE, 'model', 'difficulty_v1.joblib')
+DEFAULT_RANGES = os.path.join(HERE, 'model', 'ranges.json')
 
 
 def _logit(p):
@@ -39,6 +41,16 @@ class PassDifficultyModel:
         self.b = joblib.load(path)
         self.features = self.b['features']
         self.situation_features = self.b['situation_features']
+        self.ranges = json.load(open(DEFAULT_RANGES)) if os.path.exists(DEFAULT_RANGES) else None
+
+    def ood_columns(self, F: pd.DataFrame) -> pd.Series:
+        """Number of features outside the training 0.5%-99.5% range, per row (NaN if no ranges file)."""
+        if self.ranges is None:
+            return pd.Series(np.nan, index=F.index)
+        n = pd.Series(0, index=F.index)
+        for c, (lo, hi) in self.ranges['pass_features'].items():
+            n += ((F[c] < lo) | (F[c] > hi)).astype(int)
+        return n
 
     def _p_fail(self, F):
         """F: DataFrame with all feature columns -> (calibrated P(fail), situation-only calibrated P(fail))."""
@@ -48,13 +60,16 @@ class PassDifficultyModel:
 
     def predict_features(self, F: pd.DataFrame) -> pd.DataFrame:
         pf, ps = self._p_fail(F)
+        n_ood = self.ood_columns(F)
         return pd.DataFrame({'p_complete': 1 - pf, 'difficulty': pf, 'situation_difficulty': ps,
-                             'relative_difficulty': _logit(pf) - _logit(ps)}, index=F.index)
+                             'relative_difficulty': _logit(pf) - _logit(ps), 'n_ood_features': n_ood,
+                             'in_distribution': n_ood == 0}, index=F.index)
 
     def predict(self, P, T, defenders, basket, shot_clock=np.nan, p_vel=(0.0, 0.0), t_vel=(0.0, 0.0)):
         f = pass_features(P, T, defenders, basket, shot_clock, p_vel, t_vel)
         if f is None:
-            return dict(p_complete=1.0, difficulty=0.0, situation_difficulty=np.nan, relative_difficulty=np.nan, extrapolated=True)
+            return dict(p_complete=1.0, difficulty=0.0, situation_difficulty=np.nan, relative_difficulty=np.nan, n_ood_features=np.nan,
+                        in_distribution=False, extrapolated=True)
         r = self.predict_features(pd.DataFrame([f])).iloc[0].to_dict()
         r['extrapolated'] = False
         return r
@@ -71,13 +86,15 @@ class PassDifficultyModel:
                 idx.append(i)
         n = len(states) if hasattr(states, '__len__') else i + 1
         out = pd.DataFrame({'p_complete': 1.0, 'difficulty': 0.0, 'situation_difficulty': np.nan,
-                            'relative_difficulty': np.nan, 'extrapolated': True}, index=range(n))
+                            'relative_difficulty': np.nan, 'n_ood_features': np.nan, 'in_distribution': False,
+                            'extrapolated': True}, index=range(n))
         if feats:
             r = self.predict_features(pd.DataFrame(feats))
             r['extrapolated'] = False
             r.index = idx
             out.loc[idx, r.columns] = r.to_numpy()
             out['extrapolated'] = out['extrapolated'].astype(bool)
+            out['in_distribution'] = out['in_distribution'].astype(bool)
         return out
 
     def score_teammates(self, holder_xy, mates_xy, defenders_xy, basket, shot_clock=np.nan,
@@ -112,10 +129,19 @@ class PassValueModel(PassDifficultyModel):
         self.c_fail = sb['c_fail']
 
     def shot_xpts(self, S, defenders, basket, vel=(0.0, 0.0), shot_clock=np.nan):
+        """xPts of a shot from S now, with two guards against exploitation: every feature is clamped to the range seen in
+        training, and shots beyond the longest distance seen in training (about 33 ft, 99.5th pct) are valued as heaves
+        (observed 25% FG, three points) instead of extrapolating the make model."""
         from pass_features import shot_features
         f = shot_features(S, defenders, basket, vel, shot_clock)
         if f is None:
             return np.nan
+        if self.ranges is not None:
+            lo_hi = self.ranges['shot_features']
+            heave = f['shot_dist'] > lo_hi['shot_dist'][1]
+            f = {k: (min(max(v, lo_hi[k][0]), lo_hi[k][1]) if k in lo_hi and k != 'shot_dist' and np.isfinite(v) else v) for k, v in f.items()}
+            if heave:
+                return 3.0 * self.ranges['heave_fg']
         return float(self._xpts(self.shot, pd.DataFrame([f]))['xpts'].iloc[0])
 
     def evaluate(self, P, T, defenders, basket, shot_clock=np.nan, p_vel=(0.0, 0.0), t_vel=(0.0, 0.0)):

@@ -30,3 +30,18 @@ def test_mirror_symmetry_of_the_trained_model():
     a = m.predict(P, [22, 38], D, B, 12.0, (2, 0), (0, 1))
     b = m.predict(mir(P), mir([22, 38]), mir(D), mir(B), 12.0, (-2, 0), (0, -1))
     assert a['p_complete'] == pytest.approx(b['p_complete'], abs=1e-9)
+
+
+def test_long_shots_are_valued_as_heaves_not_extrapolated():
+    m = PassValueModel()
+    far = m.shot_xpts([55, 25], [[50, 20], [60, 30], [58, 25]], B, (0, 0), 10.0)       # about 50 ft from the basket
+    assert far == pytest.approx(3.0 * m.ranges['heave_fg'], abs=1e-9)
+    near = m.shot_xpts([9, 25], [[20, 20], [25, 30], [30, 25]], B, (0, 0), 10.0)        # open layup
+    assert near > far
+
+
+def test_out_of_range_inputs_are_flagged():
+    m = PassValueModel()
+    ok = m.predict(P, [22, 38], [[26, 31], [27, 30], [12, 18], [40, 10], [16, 24]], B, 12.0, (2, 0))
+    odd = m.predict([2, 3], [90, 48], [[50, 20]], B, 12.0, (40, 0), (0, 40))
+    assert odd['in_distribution'] is False and odd['n_ood_features'] > ok['n_ood_features']
