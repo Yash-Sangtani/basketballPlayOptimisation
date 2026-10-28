@@ -1,6 +1,6 @@
 # WS5a: Shots/ cleanup and coordinate check
 
-Branch `ws5a-shots` (worktree `/Users/yash/dev/wt/ws5a-shots`). Code-only: nothing under `Code/`, no CLAUDE.md edit,
+Branch `ws5a-shots` (worktree `<repo>`). Code-only: nothing under `Code/`, no project-notes edit,
 no model trained or created, main clone untouched. Python: the shared venv (3.12, pandas 3.1.0, matplotlib 3.11.2).
 
 ## 1. Coordinate verdict
@@ -9,7 +9,7 @@ no model trained or created, main clone untouched. Python: the shared venv (3.12
 features were computed in the plot frame (y - 50). That is now fixed: features use raw court coordinates.**
 
 Evidence (measured). Game 01.02.2016 DEN@GSW (id 0021500504, from the fetch_games.sh cache). Scratch script
-`/private/tmp/ws5a/scratch/coord_check.py` reads the tracking JSON and pbp directly (it does not use `Shots/`).
+`<scratch>` reads the tracking JSON and pbp directly (it does not use `Shots/`).
 Event 2, Iguodala alley-oop dunk, Q1 11:47:
 
 | quantity | value |
@@ -51,7 +51,7 @@ expect the plot frame and are incompatible with this code; retrain. None are tra
 - All 191 shots: tracking `dist` minus `SHOT_DISTANCE` has median +4.5 ft and mean absolute error 7.6 ft; only 34% are within 3 ft and
   54% within 6 ft; correlation 0.685.
 
-Inferred cause: the pbp clock has 1 s resolution and is often off the tracking clock (CLAUDE.md saw 2-5 s for passes), and the code only
+Inferred cause: the pbp clock has 1 s resolution and is often off the tracking clock (the project notes saw 2-5 s for passes), and the code only
 walks back up to 5 *frames* (0.2 s) to match the clock string. Fixing frame selection changes behaviour, so I left it; it matters for
 any reuse (section 6).
 
@@ -94,7 +94,7 @@ No `C:/Users` string remains in `Shots/*.py` (a test checks this).
 
 ## 3. Tests (`Shots/tests/`: 32 tests; 31 run by default, 1 opt-in real-game test; all 32 pass)
 
-Run: `cd /private/tmp/ws5a/run1 && /Users/yash/dev/basketballPlayOptimisation/.venv/bin/python -m pytest <worktree>/Shots/tests -p no:cacheprovider -q -rs`
+Run: `cd <scratch> && <repo>/.venv/bin/python -m pytest <worktree>/Shots/tests -p no:cacheprovider -q -rs`
 (about 13 s; with `SHOTS_REAL_GAME_TEST=1` about 18 s and ~1 GB RAM, I ran that through `Code/heavy.sh`).
 
 - `test_imports.py`: each of the 10 modules is imported in a fresh subprocess with cwd in an empty temp folder, `MPLBACKEND=Agg`, and data/output/model
@@ -119,7 +119,7 @@ without TensorFlow or seaborn.
 ## 4. What I ran and what I did not
 
 Ran: the pytest suite; the real `shot_tracking.get_features('01.02.2016','GSW','DEN')` on the cache game (5.9 s, 191 shots, via `heavy.sh`, output in
-`/private/tmp/ws5a/out`); `Game.plot_frame` on that game (wrote a correct-looking PNG, switched to Agg; with `show_epv=True` and no models it raised the
+`<scratch>`); `Game.plot_frame` on that game (wrote a correct-looking PNG, switched to Agg; with `show_epv=True` and no models it raised the
 clear missing-model error with TensorFlow not imported).
 
 Did not run: any training (`shot_model.main`, `zone_model.main`); the EPV happy path (no models); the `spacing.py` / `velocity.py` analyses and any plot
@@ -153,7 +153,7 @@ Reuse (judged from `shot_tracking.py`, `shot_tracking_plot.py`, `zone_model.py`,
 - **The feature ideas** in `get_features`: distance and angle to the attacked basket, closest-defender distance and angle to the shot line, defenders within
   10 ft, shooter and defender speed, shot clock, score margin. Now in raw coordinates, and distances/angles are translation-invariant anyway.
 - **The expected-points concept** in `extract_shot_probability`: P(make) times points attempted for every offensive player at a frame. This is the
-  "delta xPts passer->receiver" building block named in CLAUDE.md. Reuse the idea and `court.py`, not the implementation (per-player model reloads, the
+  "delta xPts passer->receiver" building block named in the project notes. Reuse the idea and `court.py`, not the implementation (per-player model reloads, the
   all-11-players-on-one-half direction heuristic that drops transition, the `AttributeError` above).
 - **`spacing.py` convex-hull area and `velocity.py`** as state features for V(s); hull area does not depend on the coordinate frame.
 - `court.py` and `config.py` as the one coordinate and path convention (raw 94x50, baskets at (5.35, 25) and (88.65, 25), same as `Code/`).
@@ -174,9 +174,9 @@ Do not reuse:
 ## 7. Reproduce
 
 ```
-cd /private/tmp/ws5a/run1    # any scratch dir; do not run from an iCloud folder
-PY=/Users/yash/dev/basketballPlayOptimisation/.venv/bin/python
-$PY -m pytest /Users/yash/dev/wt/ws5a-shots/Shots/tests -p no:cacheprovider -q -rs
-SHOTS_REAL_GAME_TEST=1 /Users/yash/dev/wt/ws5a-shots/Code/heavy.sh $PY -m pytest /Users/yash/dev/wt/ws5a-shots/Shots/tests -p no:cacheprovider -q
+cd <scratch>    # any scratch dir; do not run from an iCloud folder
+PY=<repo>/.venv/bin/python
+$PY -m pytest <repo>/Shots/tests -p no:cacheprovider -q -rs
+SHOTS_REAL_GAME_TEST=1 <repo>/Code/heavy.sh $PY -m pytest <repo>/Shots/tests -p no:cacheprovider -q
 ```
-Scratch scripts (not committed): `/private/tmp/ws5a/scratch/{coord_check,run_get_features,analyze_out,smoke_plot}.py`.
+Scratch scripts (not committed): `<scratch>{coord_check,run_get_features,analyze_out,smoke_plot}.py`.

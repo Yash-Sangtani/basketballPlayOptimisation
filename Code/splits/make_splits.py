@@ -11,7 +11,7 @@ Reads ../Shots/allgames.txt, writes splits/dev_games.txt and splits/test_games.t
 import os
 from datetime import datetime
 
-#Archives with no usable tracking data (see CLAUDE.md "Data facts").
+#Archives with no usable tracking data (see reports/ws4-detection.md).
 KNOWN_BAD = {
     '01.14.2016.CHI.at.PHI', '01.14.2016.CLE.at.SAS', '01.14.2016.DET.at.MEM',
     '01.23.2016.UTA.at.WAS', '01.23.2016.CHI.at.CLE',

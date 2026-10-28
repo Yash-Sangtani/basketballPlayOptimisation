@@ -3,7 +3,7 @@ Run state extraction (states.extract_game) for the games in a list; one pickle p
 Resumable: games with a pickle are skipped. TRACKING_DATA_DIR must point at a folder with
 `game logs/<game>.7z` and `events/<id>.csv` (set BEFORE python starts).
 
-    TRACKING_DATA_DIR=/private/tmp/ws5b/Tracking_Data python extract_games.py list.txt /private/tmp/ws5b/states
+    TRACKING_DATA_DIR=<scratch> python extract_games.py list.txt <scratch>
 """
 import os
 import pickle

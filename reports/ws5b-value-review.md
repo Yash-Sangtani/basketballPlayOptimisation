@@ -5,7 +5,7 @@ Commands: `TRACKING_DATA_DIR=<repo>/Tracking_Data python value/extract_games.py 
 
 ## What was fixed
 - `test_states.py::test_feature_values` expected `n_def_10 == 2`; the defender at (10, 26) is 10.05 ft from the holder at (20, 25), just outside the 10 ft radius, so the code's answer (1) is right. The test now states the distances. No change to `states.py`.
-- `fit_value.py` wrote `pass_dv.csv.gz` to a hard-coded Mac path (`/private/tmp/ws5b/`); it now goes to the reports folder. `check_possessions.py` (`--map`) and `run_extract.sh` still carry Mac paths (`/private/tmp/ws5b/...`, the Mac venv, a `gh` download of archives); they are not needed here because the archives are in the checkout.
+- `fit_value.py` wrote `pass_dv.csv.gz` to a hard-coded Mac path (`<scratch>`); it now goes to the reports folder. `check_possessions.py` (`--map`) and `run_extract.sh` still carry Mac paths (`<scratch>`, the Mac venv, a `gh` download of archives); they are not needed here because the archives are in the checkout.
 
 ## Measured results (120 dev games, 229,702 sampled 1 Hz states, 47,836 completed passes)
 **V(s) predicts almost nothing.** Target = points scored on the possession the state belongs to (mean 1.03, sd 1.135). Out-of-fold, GroupKFold(5) by game:
@@ -25,7 +25,7 @@ Rich minus baseline: RMSE gain -0.0014 [-0.0030, +0.0003]; the 16 extra features
 - Measured: V(s) as built has essentially no predictive power beyond distance to the rim (R^2 0.0006-0.003), and the rich model is worse calibrated than the baseline. The large rich-model delta-V difference for assists (d 0.78 vs 0.23) therefore cannot be read as the extra features valuing the pass better: those features add no out-of-fold skill. (Inferred, not tested: it comes from release-to-reception changes in features such as `closest_def` and `holder_speed` that are themselves correlated with the pass being followed by a shot. Assists are defined by the receiver then scoring, so an assist contrast is only a sanity check, not validation.)
 - Not done: no completion-probability term (the failed-pass model), so there is no pass-versus-shoot value, no turnover value, and no comparison with Dhruv's shot value (the shot models do not exist in the repo, see `reports/ws5a-shots.md`).
 - Design weakness (inferred from the numbers): training V on whole-possession points from any frame in the possession, with only one state per second and no information about what happens next, is a very noisy target. A usable V would need either a much larger set of games, a target restricted to "ball is in the frontcourt and the possession's remaining events", or a structured model (shot probability x shot value plus turnover rate); this MVP does not show any of those work.
-- Not independently re-run this session: `check_possessions.py` (the HANDOFF numbers for the possession table: 501 games ok, count ratio median 1.013, points equal to the final score in 501/501 with technical/other points separated; only 216/501 strictly). Its 20+ unit tests pass.
+- Not independently re-run this session: `check_possessions.py` (the earlier handoff numbers for the possession table: 501 games ok, count ratio median 1.013, points equal to the final score in 501/501 with technical/other points separated; only 216/501 strictly). Its 20+ unit tests pass.
 
 ## Recommendation
 Keep it as a working MVP of the data plumbing, not as a result. Do not use delta-V for play recommendations. The next step that would change this is a better target and a shot-value model, not more features.

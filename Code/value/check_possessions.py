@@ -3,7 +3,7 @@ Acceptance check for the possession table over a game list (pbp only, no trackin
 
     python check_possessions.py ../splits/dev_games.txt ../../reports/ws5b-possession-check.csv
 
-Needs the game-name -> game-id map (`--map`, default /private/tmp/ws5b/game_map.csv; built
+Needs the game-name -> game-id map (`--map`, default <scratch>; built
 from Tracking_Data/pass_features/meta/*.pkl of the shared dataset) because file names do
 not carry the game id.
 """
@@ -62,7 +62,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('games')
     ap.add_argument('out')
-    ap.add_argument('--map', default='/private/tmp/ws5b/game_map.csv')
+    ap.add_argument('--map', default='<scratch>')
     ap.add_argument('--save-tables', default=None, help='optional path for all possession tables (csv.gz)')
     a = ap.parse_args()
     gm = pd.read_csv(a.map).set_index('game').game_id

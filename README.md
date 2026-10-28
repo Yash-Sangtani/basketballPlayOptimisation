@@ -83,3 +83,8 @@ Games are split once and frozen: `Code/splits/dev_games.txt` (501), `test_games.
 ## Credits
 
 Passing pipeline and difficulty model: Yash Sangtani. Shooting pipeline: Dhruv.
+
+## Data
+
+Raw SportVU archives (`Tracking_Data/game logs/*.7z`) and play-by-play CSVs (`Tracking_Data/events/<game_id>.csv`) live in `Tracking_Data/`.
+Check that you are allowed to use and redistribute them before reusing this repository's data. The trained difficulty models, the frozen game splits and every report are included.

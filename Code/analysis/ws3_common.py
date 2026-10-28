@@ -21,7 +21,7 @@ from sklearn.preprocessing import StandardScaler
 HERE = os.path.dirname(os.path.abspath(__file__))
 CODE = os.path.abspath(os.path.join(HERE, '..'))
 BASELINE = os.environ.get('WS3_BASELINE', os.path.join(CODE, '..', 'Tracking_Data', 'pass_features'))   # READ-ONLY baseline
-RES = os.environ.get('WS3_RES', '/private/tmp/ws3/results')
+RES = os.environ.get('WS3_RES', '<scratch>')
 os.makedirs(RES, exist_ok=True)
 
 FEATS = ['shot_clock', 'backcourt', 'dist', 'passer_basket_dist', 'ball_end_basket_dist', 'basket_angle',
@@ -189,7 +189,7 @@ def load_sample(out_dir=None, games=None):
     """Load the per-game WS3 extraction files into pooled frames.
     Returns dict(ext, solo, feat={'actual': df, 'heading': df}, meta=..., np_events, pbp={game: df}, report)
     with a global row id `rid` (game + index) shared by all tables."""
-    out_dir = out_dir or os.environ.get('WS3_OUT', '/private/tmp/ws3/out')
+    out_dir = out_dir or os.environ.get('WS3_OUT', '<scratch>')
     files = sorted(glob.glob(f'{out_dir}/*.pkl'))
     if games is not None:
         keep = set(games)

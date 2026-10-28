@@ -92,6 +92,6 @@ Of 1,633 pbp non-pass turnovers, 933 produced a new release row (no flight to an
 
 ## What was not done
 - No manual labelling study; the manual sheet is a spot check by me.
-- A full 631-game symmetric-target dataset does not exist yet; T1 uses 100 games. WS4 regenerates once and re-evaluates (see CLAUDE.md for the outcome).
+- A full 631-game symmetric-target dataset does not exist yet; T1 uses 100 games. WS4 regenerates once and re-evaluates (see reports/ws4-detection.md for the outcome).
 - T3 used 3 seeds; the bar was marginally missed once (above).
 - The causal question (does a defender in the lane make a pass fail, or is he the interceptor by construction?) is not answerable from these labels.

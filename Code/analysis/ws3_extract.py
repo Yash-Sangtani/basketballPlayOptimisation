@@ -39,7 +39,7 @@ import pandas as pd                     # noqa: E402
 import passtracking as P                # noqa: E402
 from passtracking import PassTracking, features   # noqa: E402
 
-OUT = os.environ.get('WS3_OUT', '/private/tmp/ws3/out')
+OUT = os.environ.get('WS3_OUT', '<scratch>')
 CTX_WINDOW = (-3.0, 8.0)     # s, release clock minus pbp clock; same window the baseline uses for bad passes
 EVENT_TAG = {1: 'shot_made', 2: 'shot_miss', 3: 'ft', 4: 'rebound', 6: 'foul', 7: 'violation', 8: 'sub',
              9: 'timeout', 10: 'jumpball', 12: 'period_start', 13: 'period_end'}
