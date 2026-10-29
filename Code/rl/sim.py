@@ -38,6 +38,7 @@ class Sim:
         self.model, self.diff, self.c_fail, self.mask_ood, self.tau = model, diff, c_fail, mask_ood, tau
         self.rng = np.random.default_rng(seed)
         self.shoot_scale, self.pass_scale, self.loss_rate = shoot_scale, pass_scale, loss_rate
+        self.caller = None
 
     # ---------------------------------------------------------------- reset
     def reset(self, games, table, starts):
@@ -100,13 +101,18 @@ class Sim:
         # --- decisions for holders (offence, ball held)
         can = (~self.fl_on[idx]) & (self.holder[idx] != 0)
         hz = 1.0 - (1.0 - np.clip(o['dec'] * np.array([self.shoot_scale, self.pass_scale, 1.0]), 0, 0.999)) ** (BLOCK * DT / DEC_WINDOW_S)
-        shoot = np.zeros(n, bool)
-        passes = np.zeros(n, bool)
-        r = self.rng.random(n)
-        shoot = can & (r < hz[:, 0])
-        passes = can & ~shoot & (self.rng.random(n) < hz[:, 1] / np.maximum(1.0 - hz[:, 0], 1e-6))
-        self._shots(idx[shoot])
-        self._passes(idx[passes], o['tgt'][passes], np.flatnonzero(passes))
+        if self.caller is not None:
+            shoot, pslot = self.caller.act(self, idx, can, o)
+            self._shots(idx[shoot])
+            self._passes_fixed(idx[pslot >= 0], pslot[pslot >= 0])
+        else:
+            shoot = np.zeros(n, bool)
+            passes = np.zeros(n, bool)
+            r = self.rng.random(n)
+            shoot = can & (r < hz[:, 0])
+            passes = can & ~shoot & (self.rng.random(n) < hz[:, 1] / np.maximum(1.0 - hz[:, 0], 1e-6))
+            self._shots(idx[shoot])
+            self._passes(idx[passes], o['tgt'][passes], np.flatnonzero(passes))
         # --- advance positions over BLOCK states
         p0 = self.hist[2][idx]
         for s_ in range(BLOCK):
@@ -205,6 +211,24 @@ class Sim:
             self.fl_t[i] = 0.0
             self.fl_slot[i] = t
             self.fl_ok[i] = ok
+            self.holder[i] = 0
+
+    def _passes_fixed(self, ii, slots):
+        """Passes chosen by the caller: outcome from the cached difficulty row of the chosen (passer, receiver)."""
+        for i, t in zip(ii, slots):
+            hj = np.flatnonzero(self.ids[i, :5] == self.holder[i])
+            if len(hj) == 0:
+                continue
+            P, T = self.hist[2][i, hj[0]], self.hist[2][i, t]
+            pc, _ = self.caller.pass_cache.pop(int(i), (1.0, True))
+            self.n_pass[i] += 1
+            self.pass_len[i].append(float(np.hypot(*(T - P))))
+            self.fl_on[i] = True
+            self.fl_p0[i], self.fl_p1[i] = P, T
+            self.fl_T[i] = B.flight_time(P, T)
+            self.fl_t[i] = 0.0
+            self.fl_slot[i] = t
+            self.fl_ok[i] = bool(self.rng.random() < pc)
             self.holder[i] = 0
 
     def run(self, max_blocks=200):

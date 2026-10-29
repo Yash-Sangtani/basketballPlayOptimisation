@@ -53,5 +53,5 @@ How to represent a player's style (learned embedding versus explicit statistics 
 | 2b | mixture outputs, pass-target head, seeds, holdout | **completed** (`rl-stage2b.md`) |
 | 3 | set-play discovery and validation (possession clustering, play library) | **completed** (`rl-stage3.md`; clusters reproducible but weakly outcome-predictive; `docs/plays/`) |
 | 4a | possession simulator (executors + difficulty and shot models + guard rails) | **completed** (`rl-stage4a.md`) |
-| 4b | the play-caller RL inside the simulator | next |
+| 4b | the play-caller RL inside the simulator | **completed as a decision-level policy** (`rl-stage4b.md`); full play-calling still open |
 | 5 | audit and final evaluation (exploit check on visited states, holdout then test) | next |

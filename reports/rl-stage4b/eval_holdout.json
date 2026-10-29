@@ -1,0 +1,84 @@
+{
+ "args": {
+  "data": "../data/rl",
+  "model": "rl/model/executor_v2.keras",
+  "out": "../reports/rl-stage4b",
+  "iters": 40,
+  "n": 800,
+  "eval_n": 3000,
+  "beta": 0.02,
+  "lr": 0.005,
+  "seed": 0,
+  "final": true,
+  "policy": "../reports/rl-stage4b/policy.weights.h5",
+  "n_fit_games": 0
+ },
+ "eval": {
+  "baseline": {
+   "reward": 0.6566069835343041,
+   "p_shot": 0.6973333333333334,
+   "p_turnover": 0.27066666666666667,
+   "p_violation": 0.032,
+   "passes": 1.3386666666666667,
+   "dur": 6.3758666666666635,
+   "shot_dist": 17.568383916272346,
+   "xpts_shot": 0.9850004543990977,
+   "t_shot": 6.684894837476096,
+   "pass_len": 20.393711556713896
+  },
+  "prior_masked": {
+   "reward": 0.6910227114244178,
+   "p_shot": 0.7393333333333333,
+   "p_turnover": 0.23166666666666666,
+   "p_violation": 0.029,
+   "passes": 1.208,
+   "dur": 6.68413333333333,
+   "shot_dist": 17.664203392929853,
+   "xpts_shot": 0.9699134960654885,
+   "t_shot": 6.8333633904418365,
+   "pass_len": 20.914095545315057
+  },
+  "trained": {
+   "reward": 0.9559891647845643,
+   "p_shot": 0.9013333333333333,
+   "p_turnover": 0.096,
+   "p_violation": 0.0026666666666666666,
+   "passes": 1.5116666666666667,
+   "dur": 2.712133333333334,
+   "shot_dist": 21.66562826904364,
+   "xpts_shot": 1.0715856118171943,
+   "t_shot": 2.692899408284024,
+   "pass_len": 23.839576022496164
+  },
+  "diff_trained_minus_prior": {
+   "mean": 0.2649664533601466,
+   "ci95": [
+    0.2429529677958162,
+    0.28801257062484464
+   ]
+  },
+  "diff_trained_minus_baseline": {
+   "mean": 0.2993821812502604,
+   "ci95": [
+    0.2788285390375113,
+    0.32067686925643485
+   ]
+  },
+  "diff_prior_minus_baseline": {
+   "mean": 0.034415727890113754,
+   "ci95": [
+    0.010952338318680432,
+    0.055357969810815665
+   ]
+  }
+ },
+ "split": "holdout",
+ "n": 3000,
+ "sim": {
+  "shoot_scale": 0.85,
+  "pass_scale": 1.0,
+  "loss_rate": 0.03,
+  "mask_ood": false,
+  "c_fail": 0.1
+ }
+}
