@@ -1,0 +1,3 @@
+base      seeds [0, 1]: nll_off -1.3538+-0.0000  nll_def -1.3394+-0.0034  ade1_off 2.0219+-0.0053  ade1_def 1.8457+-0.0027  dec_ll 0.8338+-0.0014  tgt_ll 0.9561+-0.0000
+play      seeds [0, 1]: nll_off -1.3539+-0.0000  nll_def -1.3392+-0.0021  ade1_off 2.0210+-0.0032  ade1_def 1.8455+-0.0058  dec_ll 0.8355+-0.0005  tgt_ll 0.9570+-0.0001
+shuffled  seeds [0]: nll_off -1.3539  nll_def -1.3408  ade1_off 2.0224  ade1_def 1.8492  dec_ll 0.8337  tgt_ll 0.9558

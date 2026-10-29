@@ -1,0 +1,132 @@
+{
+ "real": {
+  "p_shot": 0.6986666666666667,
+  "t_first_shot": 6.604923664122137,
+  "passes_before_shot": 1.3625954198473282,
+  "pts_first_shot": 1.0095419847328244,
+  "passes_per_poss": 1.358,
+  "n": 1500,
+  "p_noshot": 0.30133333333333334,
+  "dur_mean": 8.366533333333333
+ },
+ "sim": {
+  "1:1:1": {
+   "p_shot": 0.7106666666666667,
+   "t_first_shot": 6.122701688555345,
+   "passes_before_shot": 1.1060037523452158,
+   "pts_first_shot": 0.9812407396709154,
+   "passes_per_poss": 1.2546666666666666,
+   "n": 1500,
+   "p_noshot": 0.28933333333333333,
+   "dur_mean": 5.860533333333333,
+   "p_turnover": 0.272,
+   "p_violation": 0.017333333333333333,
+   "p_timeout": 0.0,
+   "mean_reward": 0.36170841899279715,
+   "masked_pass_share": 0.17800212539851223,
+   "shot_dist_mean": 18.253579129158513,
+   "pass_len_mean": 20.92323299650178
+  },
+  "1:1:0": {
+   "p_shot": 0.8666666666666667,
+   "t_first_shot": 6.815999999999996,
+   "passes_before_shot": 1.3923076923076922,
+   "pts_first_shot": 0.9786596308901108,
+   "passes_per_poss": 1.4373333333333334,
+   "n": 1500,
+   "p_noshot": 0.1333333333333333,
+   "dur_mean": 6.7593333333333305,
+   "p_turnover": 0.106,
+   "p_violation": 0.027333333333333334,
+   "p_timeout": 0.0,
+   "mean_reward": 0.693505013438096,
+   "masked_pass_share": 0.0,
+   "shot_dist_mean": 17.62093283244058,
+   "pass_len_mean": 20.182141923921005
+  },
+  "0.7:1.6:0": {
+   "p_shot": 0.7593333333333333,
+   "t_first_shot": 7.406848112379275,
+   "passes_before_shot": 2.4679543459174713,
+   "pts_first_shot": 0.9740961641586604,
+   "passes_per_poss": 2.4486666666666665,
+   "n": 1500,
+   "p_noshot": 0.2406666666666667,
+   "dur_mean": 7.278533333333329,
+   "p_turnover": 0.18666666666666668,
+   "p_violation": 0.054,
+   "p_timeout": 0.0,
+   "mean_reward": 0.4604903539844762,
+   "masked_pass_share": 0.0,
+   "shot_dist_mean": 18.03944427479937,
+   "pass_len_mean": 20.439777134550777
+  },
+  "0.5:2:0": {
+   "p_shot": 0.6893333333333334,
+   "t_first_shot": 8.16673114119922,
+   "passes_before_shot": 3.1431334622823983,
+   "pts_first_shot": 0.9835275572553249,
+   "passes_per_poss": 3.326,
+   "n": 1500,
+   "p_noshot": 0.31066666666666665,
+   "dur_mean": 8.495733333333327,
+   "p_turnover": 0.19666666666666666,
+   "p_violation": 0.114,
+   "p_timeout": 0.0,
+   "mean_reward": 0.31760499613467064,
+   "masked_pass_share": 0.0,
+   "shot_dist_mean": 18.33934852806684,
+   "pass_len_mean": 20.053115504493835
+  },
+  "0.6:1.2:0": {
+   "p_shot": 0.758,
+   "t_first_shot": 7.808970976253295,
+   "passes_before_shot": 1.7678100263852243,
+   "pts_first_shot": 0.9616904292562051,
+   "passes_per_poss": 1.906,
+   "n": 1500,
+   "p_noshot": 0.242,
+   "dur_mean": 8.263199999999994,
+   "p_turnover": 0.14333333333333334,
+   "p_violation": 0.09866666666666667,
+   "p_timeout": 0.0,
+   "mean_reward": 0.4482413453762033,
+   "masked_pass_share": 0.0,
+   "shot_dist_mean": 17.721629701961184,
+   "pass_len_mean": 20.48468762650778
+  }
+ },
+ "real_ci95": {
+  "p_shot": [
+   0.6777994339493465,
+   0.722573742746615
+  ],
+  "t_first_shot": [
+   6.349290490204167,
+   6.882515376991689
+  ],
+  "passes_before_shot": [
+   1.2840513156699078,
+   1.4373792261677858
+  ],
+  "pts_first_shot": [
+   0.9362321914443353,
+   1.0959198780252686
+  ],
+  "passes_per_poss": [
+   1.2927204545161988,
+   1.4295840475294732
+  ]
+ },
+ "args": {
+  "data": "../data/rl",
+  "model": "rl/model/executor_v2.keras",
+  "out": "../reports/rl-stage4a",
+  "n": 1500,
+  "split": "val",
+  "configs": "1:1:1,1:1:0,0.7:1.6:0,0.5:2:0,0.6:1.2:0",
+  "tau": 1.0,
+  "seed": 0
+ },
+ "n_starts": 1500
+}

@@ -1,0 +1,34 @@
+{
+ "logloss": {
+  "league": 1.367619670372138,
+  "position": 1.3256495970361926,
+  "player": 1.2395051434483826,
+  "player_shuffled": 1.3543413977925791
+ },
+ "comparisons": {
+  "position vs league": {
+   "logloss_reduction": 0.030688410122475696,
+   "ci": [
+    0.028644530713458623,
+    0.0326086453229225
+   ]
+  },
+  "player vs position": {
+   "logloss_reduction": 0.06498282334970462,
+   "ci": [
+    0.062768797285039,
+    0.06738015368719752
+   ]
+  },
+  "player_shuffled vs position": {
+   "logloss_reduction": -0.021643578228013105,
+   "ci": [
+    -0.023401756705060818,
+    -0.01965454693175487
+   ]
+  }
+ },
+ "n_shots": 60984,
+ "n_players": 434,
+ "k": 50.0
+}

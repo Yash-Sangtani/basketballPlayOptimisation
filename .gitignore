@@ -26,3 +26,7 @@ Tracking_Data/game logs/*.json
 reports/**/oof.npz
 reports/ws5b-out/*.csv.gz
 Tracking_Data/pass_features_baseline_a846f643/
+
+# generated datasets (never committed)
+data/
+models/

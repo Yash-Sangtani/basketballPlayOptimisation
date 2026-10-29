@@ -1,0 +1,21 @@
+none      seeds [0, 1, 2]: nll_off -1.3607+-0.0075  nll_def -1.3676+-0.0168  ade1_off 2.0048+-0.0015  ade1_def 1.7652+-0.0056  dec_ll 0.7799+-0.0010  tgt_ll 0.8767+-0.0007
+real      seeds [0, 1, 2]: nll_off -1.3581+-0.0037  nll_def -1.3670+-0.0024  ade1_off 2.0074+-0.0087  ade1_def 1.7711+-0.0066  dec_ll 0.7711+-0.0030  tgt_ll 0.8695+-0.0039
+shuffled  seeds [0]: nll_off -1.3514  nll_def -1.3622  ade1_off 2.0277  ade1_def 1.7842  dec_ll 0.7968  tgt_ll 0.8939
+  real - none | nll_off  : +0.0025 [+0.0015, +0.0036]   (negative = real better for losses/errors)
+  real - none | nll_def  : +0.0007 [-0.0001, +0.0016]   (negative = real better for losses/errors)
+  real - none | ade1_off : +0.0026 [+0.0012, +0.0038]   (negative = real better for losses/errors)
+  real - none | ade1_def : +0.0059 [+0.0048, +0.0069]   (negative = real better for losses/errors)
+  real - none | dec_ll   : -0.0088 [-0.0102, -0.0073]   (negative = real better for losses/errors)
+  real - none | tgt_ll   : -0.0072 [-0.0107, -0.0042]   (negative = real better for losses/errors)
+  shuffled - none | nll_off  : +0.0092 [+0.0070, +0.0112]   (negative = shuffled better for losses/errors)
+  shuffled - none | nll_def  : +0.0054 [+0.0025, +0.0083]   (negative = shuffled better for losses/errors)
+  shuffled - none | ade1_off : +0.0229 [+0.0194, +0.0264]   (negative = shuffled better for losses/errors)
+  shuffled - none | ade1_def : +0.0190 [+0.0158, +0.0225]   (negative = shuffled better for losses/errors)
+  shuffled - none | dec_ll   : +0.0174 [+0.0147, +0.0202]   (negative = shuffled better for losses/errors)
+  shuffled - none | tgt_ll   : +0.0296 [+0.0100, +0.0457]   (negative = shuffled better for losses/errors)
+  real - shuffled | nll_off  : -0.0067 [-0.0087, -0.0044]   (negative = real better for losses/errors)
+  real - shuffled | nll_def  : -0.0047 [-0.0079, -0.0013]   (negative = real better for losses/errors)
+  real - shuffled | ade1_off : -0.0203 [-0.0239, -0.0165]   (negative = real better for losses/errors)
+  real - shuffled | ade1_def : -0.0132 [-0.0169, -0.0095]   (negative = real better for losses/errors)
+  real - shuffled | dec_ll   : -0.0261 [-0.0288, -0.0234]   (negative = real better for losses/errors)
+  real - shuffled | tgt_ll   : -0.0344 [-0.0511, -0.0141]   (negative = real better for losses/errors)

@@ -1,0 +1,22 @@
+loaded 150 of 150 train games (5s)
+rows built (94s): movement 867040, decision 178048
+
+[A] movement: 867040 player-states, 150 games, 421 players
+   M1 +position               RMSE of 1-s displacement 1.755 ft/axis   [81s]
+   M4 +style stats            RMSE of 1-s displacement 1.751 ft/axis   [99s]
+   M5 shuffled style (control) RMSE of 1-s displacement 1.756 ft/axis   [94s]
+   zero move                  RMSE 4.312
+   constant velocity          RMSE 2.215
+   M4 +style stats vs M1 +position: squared-error reduction +0.44% [+0.39, +0.49]
+   M5 shuffled style (control) vs M1 +position: squared-error reduction -0.16% [-0.19, -0.13]
+Traceback (most recent call last):
+  File "/home/user/basketballplayoptimisation-private/Code/rl/identity_test.py", line 261, in <module>
+    main()
+    ~~~~^^
+  File "/home/user/basketballplayoptimisation-private/Code/rl/identity_test.py", line 253, in main
+    task_movement(M, out)
+    ~~~~~~~~~~~~~^^^^^^^^
+  File "/home/user/basketballplayoptimisation-private/Code/rl/identity_test.py", line 191, in task_movement
+    pp = pd.DataFrame({'player': M.player, 'm1': sse['M1 +position'], 'm2': sse['M2 +identity']}).groupby('player').agg(n=('m1', 'size'), m1=('m1', 'sum'), m2=('m2', 'sum'))
+                                                                            ~~~^^^^^^^^^^^^^^^^
+KeyError: 'M2 +identity'

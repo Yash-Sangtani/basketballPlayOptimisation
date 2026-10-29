@@ -1,0 +1,33 @@
+{
+ "decision": {
+  "logloss": {
+   "M1 +position": 0.8241995634507638,
+   "M4 +style stats": 0.8140739800486013,
+   "M5 shuffled style (control)": 0.820121710721369
+  },
+  "prior_logloss": 1.010135176811582,
+  "comparisons": {
+   "M4 +style stats vs M1 +position": {
+    "logloss_reduction": 0.012285353998209514,
+    "ci": [
+     0.010909904759261827,
+     0.013675977558302766
+    ]
+   },
+   "M5 shuffled style (control) vs M1 +position": {
+    "logloss_reduction": 0.0049476521345408475,
+    "ci": [
+     0.003941565051100113,
+     0.005933680042391151
+    ]
+   }
+  },
+  "classes": {
+   "shoot": 0.15715986700215673,
+   "pas": 0.3599197969086988,
+   "keep": 0.4829203360891445
+  },
+  "n_rows": 178048,
+  "n_games": 150
+ }
+}

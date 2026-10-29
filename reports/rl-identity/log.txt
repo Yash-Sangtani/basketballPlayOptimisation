@@ -1,0 +1,25 @@
+loaded 150 of 150 train games (5s)
+rows built (97s): movement 867040, decision 178048
+
+[A] movement: 867040 player-states, 150 games, 421 players
+   M0 situation               RMSE of 1-s displacement 1.762 ft/axis   [80s]
+   M1 +position               RMSE of 1-s displacement 1.755 ft/axis   [80s]
+   M2 +identity               RMSE of 1-s displacement 1.759 ft/axis   [88s]
+   M3 shuffled id (control)   RMSE of 1-s displacement 1.773 ft/axis   [83s]
+   zero move                  RMSE 4.312
+   constant velocity          RMSE 2.215
+   M1 +position vs M0 situation: squared-error reduction +0.82% [+0.77, +0.86]
+   M2 +identity vs M1 +position: squared-error reduction -0.49% [-0.57, -0.41]
+   M2 +identity vs M0 situation: squared-error reduction +0.33% [+0.24, +0.42]
+   M3 shuffled id (control) vs M1 +position: squared-error reduction -2.10% [-2.14, -2.06]
+   per-player gain from identity (players with >= 1500 rows, n=259): median -0.51%, share of players that improve 0.34, 10th/90th pct -1.6% / +1.4%
+
+[B] ball-handler decision: 178048 states, 150 games; next 2 s: shoot 0.157, pass 0.360, keep 0.483
+   M0 situation               log loss 0.8274 (prior 1.0101)   [23s]
+   M1 +position               log loss 0.8242 (prior 1.0101)   [22s]
+   M2 +identity               log loss 0.8291 (prior 1.0101)   [27s]
+   M3 shuffled id (control)   log loss 0.8491 (prior 1.0101)   [24s]
+   M1 +position vs M0 situation: log-loss reduction +0.39% [+0.32, +0.46]
+   M2 +identity vs M1 +position: log-loss reduction -0.59% [-0.84, -0.34]
+   M2 +identity vs M0 situation: log-loss reduction -0.20% [-0.45, +0.06]
+   M3 shuffled id (control) vs M1 +position: log-loss reduction -3.02% [-3.12, -2.91]
