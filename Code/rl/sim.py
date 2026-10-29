@@ -77,6 +77,16 @@ class Sim:
         self.fl_slot = np.zeros(N, np.int64)
         self.fl_ok = np.zeros(N, bool)
         self.traj = [self.hist[2].copy()]
+        self.ball_traj = [self.ball.copy()]
+        self.holder_traj = [self.holder.copy()]
+        self.t_front0 = self.t_front.copy()
+        # real half-court states before the start state (for the play descriptor): positions, ball xy, t_front of states k-50 .. k-1
+        self.prior = []
+        for g, k in starts:
+            d = games[g]
+            j = np.arange(max(0, k - 50), k)
+            j = j[(d['poss_id'][j] == d['poss_id'][k]) & d['live'][j] & d['frontcourt'][j] & (d['t_front'][j] >= 0)]
+            self.prior.append((d['pos'][j].astype(np.float64), d['ball'][j, :2].astype(np.float64), d['t_front'][j].astype(np.float64)))
         return self
 
     # ---------------------------------------------------------------- one block
@@ -124,6 +134,8 @@ class Sim:
             self.hist = [self.hist[1], self.hist[2], full]
             self._advance_state()
             self.traj.append(self.hist[2].copy())
+            self.ball_traj.append(self.ball.copy())
+            self.holder_traj.append(self.holder.copy())
         return bool(self.alive.any())
 
     def _advance_state(self):
@@ -230,6 +242,25 @@ class Sim:
             self.fl_slot[i] = t
             self.fl_ok[i] = bool(self.rng.random() < pc)
             self.holder[i] = 0
+
+    def play_descriptors(self, window=6.0):
+        """Descriptors of the first `window` s after midcourt for episodes that lasted long enough (t_front at the end >= window). -> (idx, X)"""
+        from play_reward import describe_seq
+        T = np.stack(self.traj)          # (S,N,10,2)
+        Bt = np.stack(self.ball_traj)    # (S,N,3)
+        out_i, out_x = [], []
+        for i in range(self.N):
+            n_states = int(round(self.elapsed[i] / DT))
+            tf_end = self.t_front0[i] + self.elapsed[i]
+            if tf_end < window:
+                continue
+            pp, pb, pt = self.prior[i]
+            pos = np.concatenate([pp, T[:n_states + 1, i]]) if len(pp) else T[:n_states + 1, i]
+            bl = np.concatenate([pb, Bt[:n_states + 1, i, :2]]) if len(pp) else Bt[:n_states + 1, i, :2]
+            tf = np.concatenate([pt, self.t_front0[i] + DT * np.arange(n_states + 1)]) if len(pp) else self.t_front0[i] + DT * np.arange(n_states + 1)
+            out_i.append(i)
+            out_x.append(describe_seq(pos, bl, tf))
+        return np.array(out_i, int), (np.array(out_x) if out_x else np.zeros((0, 231)))
 
     def run(self, max_blocks=200):
         for _ in range(max_blocks):

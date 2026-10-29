@@ -24,7 +24,7 @@ from executor_data import DT             # noqa: E402
 from features import BASKET              # noqa: E402
 from pass_features import shot_features  # noqa: E402
 
-D_FEAT = 12
+D_FEAT = 13
 N_ACT = 6        # keep, shoot, pass x4
 RMAX = 1.5         # the learned logit residual is bounded to +-1.5 (action probabilities can change by at most e^1.5 = 4.5x vs the executor's own)
 HEAVE_CLOCK = 3.0   # seconds: a shot beyond the training distance range is only an available action in the last 3 s of the shot clock
@@ -61,7 +61,7 @@ class Caller:
         self.rng = np.random.default_rng(seed + 1)
         self.pi = keras.Sequential([keras.Input((D_FEAT,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(32, activation='gelu'),
                                     keras.layers.Dense(1, kernel_initializer='zeros')])
-        self.v = keras.Sequential([keras.Input((6,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(1)])
+        self.v = keras.Sequential([keras.Input((7,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(1)])
         self.opt_pi = keras.optimizers.Adam(lr)
         self.opt_v = keras.optimizers.Adam(lr)
         self.buf = []
@@ -124,6 +124,7 @@ class Caller:
         F[:, :, 9] = tin[:, None]
         F[:, :, 10] = xp[:, 0:1]
         F[:, :, 11] = nd_self[:, None]
+        F[:, :, 12] = (np.clip(6.0 - sim.t_front[G], 0.0, 6.0) / 6.0)[:, None]      # time left until the 6-s play window closes
         F[:, 1, 0] = 1
         F[:, 1, 2] = xp[:, 0]
         for j in range(4):
@@ -136,7 +137,7 @@ class Caller:
             F[:, 2 + j, 6] = np.array([np.hypot(*(pos[r_, 5:] - tpos[r_]).T).min() for r_ in range(m)]) / 10.0
             hp = np.array([pos[r_, max(hslot[r_], 0)] for r_ in range(m)])
             F[:, 2 + j, 7] = np.hypot(*(tpos - hp).T) / 30.0
-        ctx = np.stack([sc, tin, xp[:, 0], nd_self, np.where(okp, F[:, 2:, 4], -2).max(1), np.where(okp, xp[:, 1:], 0).max(1)], axis=1).astype(np.float32)
+        ctx = np.stack([sc, tin, xp[:, 0], nd_self, np.where(okp, F[:, 2:, 4], -2).max(1), np.where(okp, xp[:, 1:], 0).max(1), F[:, 0, 12]], axis=1).astype(np.float32)
         logits = prior_logp + RMAX * np.tanh(np.asarray(self.pi(F.reshape(-1, D_FEAT))).reshape(m, N_ACT) / RMAX)
         logits = np.where(mask, logits, -1e9)
         p = np.exp(logits - logits.max(1, keepdims=True))

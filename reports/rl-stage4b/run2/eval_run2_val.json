@@ -1,0 +1,95 @@
+{
+ "eval": {
+  "baseline": {
+   "reward": 0.6455305665425796,
+   "p_shot": 0.696,
+   "p_turnover": 0.2735,
+   "p_violation": 0.0305,
+   "passes": 1.294,
+   "dur": 6.252699999999997,
+   "shot_dist": 17.51276059788352,
+   "xpts_shot": 0.9711646071014074,
+   "t_shot": 6.65258620689655,
+   "pass_len": 20.508552884968022,
+   "reward_with_bonus": 0.6635305665425796,
+   "play_bonus_rate": 0.072,
+   "clean_play_rate": 0.2515,
+   "reached_6s": 0.5965,
+   "plays_used": 24
+  },
+  "prior_masked": {
+   "reward": 0.697612760851407,
+   "p_shot": 0.7405,
+   "p_turnover": 0.2275,
+   "p_violation": 0.032,
+   "passes": 1.1275,
+   "dur": 6.523599999999997,
+   "shot_dist": 17.747117198520016,
+   "xpts_shot": 0.9771272935197932,
+   "t_shot": 6.774341661039835,
+   "pass_len": 21.277265775177273,
+   "reward_with_bonus": 0.7179877608514069,
+   "play_bonus_rate": 0.0815,
+   "clean_play_rate": 0.271,
+   "reached_6s": 0.627,
+   "plays_used": 24
+  },
+  "run1_policy": {
+   "reward": 0.9560513632926163,
+   "p_shot": 0.8995,
+   "p_turnover": 0.098,
+   "p_violation": 0.0025,
+   "passes": 1.444,
+   "dur": 2.6402,
+   "shot_dist": 22.01313321039539,
+   "xpts_shot": 1.074042649574893,
+   "t_shot": 2.6121178432462484,
+   "pass_len": 24.214429783523908,
+   "reward_with_bonus": 0.9656763632926163,
+   "play_bonus_rate": 0.0385,
+   "clean_play_rate": 0.076,
+   "reached_6s": 0.1965,
+   "plays_used": 23
+  },
+  "run2_policy": {
+   "reward": 0.9479031587317097,
+   "p_shot": 0.8885,
+   "p_turnover": 0.108,
+   "p_violation": 0.0035,
+   "passes": 0.971,
+   "dur": 3.255,
+   "shot_dist": 21.397662339543302,
+   "xpts_shot": 1.0794070441549912,
+   "t_shot": 3.270906021384356,
+   "pass_len": 24.389358875803058,
+   "reward_with_bonus": 0.9619031587317097,
+   "play_bonus_rate": 0.056,
+   "clean_play_rate": 0.1085,
+   "reached_6s": 0.2925,
+   "plays_used": 24
+  },
+  "diff_run2_policy_minus_baseline": {
+   "mean": 0.30237259218913015,
+   "ci95": [
+    0.27164659988902107,
+    0.32804708410213945
+   ]
+  },
+  "diff_run2_policy_minus_run1_policy": {
+   "mean": -0.00814820456090657,
+   "ci95": [
+    -0.02691687783192464,
+    0.011649403246434206
+   ]
+  },
+  "diff_run1_policy_minus_baseline": {
+   "mean": 0.31052079675003674,
+   "ci95": [
+    0.28004256778076664,
+    0.33580066054002305
+   ]
+  }
+ },
+ "split": "val",
+ "n": 2000
+}
