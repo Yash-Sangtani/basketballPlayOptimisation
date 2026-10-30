@@ -19,7 +19,7 @@ Regenerate with `python difficulty/make_animation.py --out ../docs/pass_difficul
 | `Code/pass_model.py`, `Code/evaluation.py` | Grouped-by-game evaluation (no game is ever in both train and test), calibration, bootstrap intervals. |
 | `Code/value/` | Possession table from play-by-play and an expected-points state-value experiment (works end to end, not yet predictive; see its report). |
 | `Shots/` | Shot detection and shot-quality features (Dhruv), spacing and velocity analysis. |
-| `reports/` | Every experiment written up with numbers, confidence intervals and what did not work. |
+| (report kept in the private repo) | Every experiment written up with numbers, confidence intervals and what did not work. |
 | `Tracking_Data/` | Raw SportVU archives and play-by-play. |
 
 ## Pass difficulty in one minute
@@ -56,9 +56,9 @@ and a model that never saw an official bad-pass turnover as a failure still rank
 
 - It predicts *a pass not reaching the intended teammate*, not "a turnover": about a third of its failures coincide with an official bad-pass turnover; the rest are deflections, loose balls and fumbles.
 - The intended receiver is inferred from the first 0.3 s of ball flight (right for about 76% of completions).
-- It was fit to 2015–16 defenders. A policy can find states outside that data. The API reports `in_distribution` for every pass, and an adversarial check (`reports/difficulty-exploit.md`) found one real weakness: with several defenders standing in the middle of the pass line the model still says about 74% complete. Mask out-of-distribution passes and do not let the policy place players.
+- It was fit to 2015–16 defenders. A policy can find states outside that data. The API reports `in_distribution` for every pass, and an adversarial check ((report kept in the private repo)) found one real weakness: with several defenders standing in the middle of the pass line the model still says about 74% complete. Mask out-of-distribution passes and do not let the policy place players.
 - The shot-value layer (expected points) is weaker than the pass model and did not predict assists better than distance to the basket; use `p_complete` and let RL learn the continuation value.
-- An earlier approach that used the turnover log as the label looked better (ROC 0.85) but was inflated by how the data were built; `reports/ws3-selection.md` shows how that was found.
+- An earlier approach that used the turnover log as the label looked better (ROC 0.85) but was inflated by how the data were built; (report kept in the private repo) shows how that was found.
 
 ## Setup
 
@@ -77,8 +77,8 @@ Games are split once and frozen: `Code/splits/dev_games.txt` (501), `test_games.
 
 ## Reports
 
-`reports/ws2-eval.md` (evaluation), `reports/ws3-selection.md` (is the signal real?), `reports/ws4-detection.md` (dataset changes and the test run),
-`reports/ws5b-value-review.md` (value model), `reports/difficulty-results.md` (the difficulty model), `reports/difficulty-exploit.md` (can a policy game it?).
+(report kept in the private repo) (evaluation), (report kept in the private repo) (is the signal real?), (report kept in the private repo) (dataset changes and the test run),
+(report kept in the private repo) (value model), (report kept in the private repo) (the difficulty model), (report kept in the private repo) (can a policy game it?).
 
 ## Credits
 
