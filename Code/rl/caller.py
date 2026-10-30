@@ -20,11 +20,12 @@ os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 import numpy as np                       # noqa: E402
 import pandas as pd                      # noqa: E402
 import keras                             # noqa: E402
+import tensorflow as tf_                 # noqa: E402
 from executor_data import DT             # noqa: E402
 from features import BASKET              # noqa: E402
 from pass_features import shot_features  # noqa: E402
 
-D_FEAT = 13
+D_FEAT = 14
 N_ACT = 6        # keep, shoot, pass x4
 RMAX = 1.5         # the learned logit residual is bounded to +-1.5 (action probabilities can change by at most e^1.5 = 4.5x vs the executor's own)
 HEAVE_CLOCK = 3.0   # seconds: a shot beyond the training distance range is only an available action in the last 3 s of the shot clock
@@ -61,11 +62,15 @@ class Caller:
         self.rng = np.random.default_rng(seed + 1)
         self.pi = keras.Sequential([keras.Input((D_FEAT,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(32, activation='gelu'),
                                     keras.layers.Dense(1, kernel_initializer='zeros')])
-        self.v = keras.Sequential([keras.Input((7,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(1)])
+        self.v = keras.Sequential([keras.Input((8,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(1, kernel_initializer='zeros')])
         self.opt_pi = keras.optimizers.Adam(lr)
         self.opt_v = keras.optimizers.Adam(lr)
         self.buf = []
         self.pass_cache = {}
+        self.play_prior = None
+        self.play_b = tf_.Variable(np.zeros(1, np.float32), name='play_b')
+        self.opt_play = keras.optimizers.Adam(lr)
+        self._play_choice = None
 
     # ------------------------------------------------------------------ features
     def act(self, sim, idx, can, o):
@@ -125,6 +130,8 @@ class Caller:
         F[:, :, 10] = xp[:, 0:1]
         F[:, :, 11] = nd_self[:, None]
         F[:, :, 12] = (np.clip(6.0 - sim.t_front[G], 0.0, 6.0) / 6.0)[:, None]      # time left until the 6-s play window closes
+        epv_self = (sim.cur_epv[hold] if sim.cur_epv is not None else np.zeros(m)).astype(np.float32)
+        F[:, :, 13] = (epv_self / 2.0)[:, None]
         F[:, 1, 0] = 1
         F[:, 1, 2] = xp[:, 0]
         for j in range(4):
@@ -137,7 +144,7 @@ class Caller:
             F[:, 2 + j, 6] = np.array([np.hypot(*(pos[r_, 5:] - tpos[r_]).T).min() for r_ in range(m)]) / 10.0
             hp = np.array([pos[r_, max(hslot[r_], 0)] for r_ in range(m)])
             F[:, 2 + j, 7] = np.hypot(*(tpos - hp).T) / 30.0
-        ctx = np.stack([sc, tin, xp[:, 0], nd_self, np.where(okp, F[:, 2:, 4], -2).max(1), np.where(okp, xp[:, 1:], 0).max(1), F[:, 0, 12]], axis=1).astype(np.float32)
+        ctx = np.stack([sc, tin, xp[:, 0], nd_self, np.where(okp, F[:, 2:, 4], -2).max(1), np.where(okp, xp[:, 1:], 0).max(1), F[:, 0, 12], epv_self / 2.0], axis=1).astype(np.float32)
         logits = prior_logp + RMAX * np.tanh(np.asarray(self.pi(F.reshape(-1, D_FEAT))).reshape(m, N_ACT) / RMAX)
         logits = np.where(mask, logits, -1e9)
         p = np.exp(logits - logits.max(1, keepdims=True))
@@ -153,6 +160,23 @@ class Caller:
             self.pass_cache[int(G[r_])] = (float(pc[r_, a[r_] - 2]), bool(okp[r_, a[r_] - 2]))
         self.last_stats = dict(p_shoot=float(p[:, 1].mean()), p_pass=float(p[:, 2:].sum(1).mean()), kl=float((p * (np.log(np.clip(p, 1e-9, 1)) - np.where(mask, prior_logp, 0))).sum(1).mean()))
         return shoot, pslot
+
+    # ------------------------------------------------------------------ play head
+    def set_play_prior(self, freq):
+        self.play_prior = np.log(np.clip(np.asarray(freq, np.float32), 1e-4, 1.0))
+        self.play_prior = self.play_prior - np.log(np.exp(self.play_prior).sum())
+        self.play_b = tf_.Variable(np.zeros(len(freq), np.float32), name='play_b')
+
+    def play_logits(self):
+        return self.play_prior + RMAX * np.tanh(np.asarray(self.play_b) / RMAX)
+
+    def choose_plays(self, n):
+        lg = self.play_logits()
+        p = np.exp(lg - lg.max())
+        p /= p.sum()
+        plays = self.rng.choice(len(p), size=n, p=p)
+        self._play_choice = plays
+        return plays
 
     # ------------------------------------------------------------------ learning
     def update(self, returns):
@@ -170,10 +194,10 @@ class Caller:
         Ft, mt, pt, at, ct, Gt = [tf.constant(x) for x in (F, mask, prior.astype(np.float32), a, ctx, G)]
         for _ in range(3):
             with tf.GradientTape() as tv:
-                v = tf.squeeze(self.v(ct), -1)
+                v = tf.squeeze(self.v(ct), -1) + ct[:, 7] * 2.0
                 lv = tf.reduce_mean((v - Gt) ** 2)
             self.opt_v.apply_gradients(zip(tv.gradient(lv, self.v.trainable_variables), self.v.trainable_variables))
-        adv = Gt - tf.squeeze(self.v(ct), -1)
+        adv = Gt - (tf.squeeze(self.v(ct), -1) + ct[:, 7] * 2.0)
         adv = (adv - tf.reduce_mean(adv)) / (tf.math.reduce_std(adv) + 1e-6)
         for _ in range(self.n_steps):
             with tf.GradientTape() as t:
@@ -185,4 +209,22 @@ class Caller:
                 kl = tf.reduce_sum(p * (lp - tf.where(mt, pt - tf.reduce_logsumexp(tf.where(mt, pt, -1e9), axis=-1, keepdims=True), 0.0)), axis=-1)
                 loss = -tf.reduce_mean(tf.stop_gradient(adv) * logp_a) + self.beta * tf.reduce_mean(kl)
             self.opt_pi.apply_gradients(zip(t.gradient(loss, self.pi.trainable_variables), self.pi.trainable_variables))
-        return dict(loss=float(loss), kl=float(tf.reduce_mean(kl)), v_loss=float(lv), n_dec=int(len(a)))
+        pl = {}
+        if self._play_choice is not None and self.play_prior is not None:
+            import tensorflow as tf2
+            ch = tf2.constant(self._play_choice)
+            adv_ep = (returns - returns.mean()) / (returns.std() + 1e-6)
+            adv_ep = tf2.constant(adv_ep.astype(np.float32))
+            prior = tf2.constant(self.play_prior)
+            for _ in range(self.n_steps):
+                with tf2.GradientTape() as tp:
+                    lg = prior + RMAX * tf2.tanh(self.play_b / RMAX)
+                    lp = tf2.nn.log_softmax(lg)
+                    pr = tf2.exp(lp)
+                    klp = tf2.reduce_sum(pr * (lp - tf2.nn.log_softmax(prior)))
+                    lpl = -tf2.reduce_mean(adv_ep * tf2.gather(lp, ch)) + self.beta * klp
+                g = tp.gradient(lpl, [self.play_b])
+                self.opt_play.apply_gradients(zip(g, [self.play_b]))
+            pl = dict(play_kl=float(klp))
+            self._play_choice = None
+        return dict(pl, loss=float(loss), kl=float(tf.reduce_mean(kl)), v_loss=float(lv), n_dec=int(len(a)))

@@ -34,14 +34,20 @@ END_NAMES = {0: 'running', 1: 'shot', 2: 'turnover', 3: 'violation', 4: 'timeout
 
 
 class Sim:
-    def __init__(self, model, diff, c_fail=1.16, mask_ood=True, tau=1.0, seed=0, shoot_scale=1.0, pass_scale=1.0, loss_rate=0.0):
+    def __init__(self, model, diff, c_fail=1.16, mask_ood=True, tau=1.0, seed=0, shoot_scale=1.0, pass_scale=1.0, loss_rate=0.0, lead_pass=True, play_targets=None, epv=None):
         self.model, self.diff, self.c_fail, self.mask_ood, self.tau = model, diff, c_fail, mask_ood, tau
         self.rng = np.random.default_rng(seed)
         self.shoot_scale, self.pass_scale, self.loss_rate = shoot_scale, pass_scale, loss_rate
         self.caller = None
+        self.lead_pass = lead_pass
+        self.pt, self.epv = play_targets, epv
+        from executor_data import F_DIM
+        self.cond = model.inputs[0].shape[-1] > F_DIM
+        self.cur_epv = None
+        self.arrival_gap = []
 
     # ---------------------------------------------------------------- reset
-    def reset(self, games, table, starts):
+    def reset(self, games, table, starts, play=None):
         """starts: list of (game_index, state index k). History needs k-2, k-1, k in the data (caller checks)."""
         gi = np.array([s[0] for s in starts])
         ks = np.array([s[1] for s in starts])
@@ -60,6 +66,7 @@ class Sim:
         self.t_in = t_in
         self.t_front = take('t_front').astype(np.float64)
         self.qt = take('quarter_time').astype(np.float64)
+        self.play = np.full(N, -1, np.int32) if play is None else np.asarray(play, np.int32)
         self.elapsed = np.zeros(N)
         self.alive = np.ones(N, bool)
         self.end = np.zeros(N, np.int8)
@@ -93,6 +100,10 @@ class Sim:
     def _tokens(self, idx):
         tok = make_tokens(self.hist[2][idx], self.hist[1][idx], self.hist[0][idx], self.ids[idx], self.holder[idx], self.ball[idx], self.pc[idx], self.prof[idx])
         ctx = make_ctx(self.ball[idx, 2], self.shot_clock[idx], self.t_in[idx], self.t_front[idx], self.qt[idx])
+        self._base = (tok, ctx)
+        if self.cond:
+            tx, cx = self.pt.features(self.hist[2][idx], self.t_front[idx], self.play[idx])
+            tok, ctx = np.concatenate([tok, tx], axis=2), np.concatenate([ctx, cx], axis=1)
         return tok, ctx
 
     def step_block(self):
@@ -101,6 +112,8 @@ class Sim:
             return False
         tok, ctx = self._tokens(idx)
         o = self.model.predict([tok, ctx], verbose=0, batch_size=2048)
+        if self.epv is not None and self.caller is not None:
+            self.cur_epv = self.epv.predict(list(self._base), verbose=0, batch_size=2048)[:, 0]
         w, mu, lv = mixture_stats(o['mix'])
         n = len(idx)
         u = self.rng.random((n, 10, 1))
@@ -127,6 +140,16 @@ class Sim:
         p0 = self.hist[2][idx]
         for s_ in range(BLOCK):
             pos = p0 + step[:, :, s_, :] * Y_SCALE
+            if self.lead_pass:
+                for r_, i_ in enumerate(idx):
+                    if self.fl_on[i_] and self.fl_ok[i_]:
+                        sl = self.fl_slot[i_]
+                        cur = self.hist[2][i_, sl]
+                        to = self.fl_p1[i_] - cur
+                        dist = float(np.hypot(*to))
+                        if dist > 1e-6:
+                            rem = max(self.fl_T[i_] - self.fl_t[i_], DT)
+                            pos[r_, sl] = cur + to / dist * min(dist / rem, self.RECV_CAP) * DT
             pos[..., 0] = pos[..., 0].clip(0, 94)
             pos[..., 1] = pos[..., 1].clip(0, 50)
             full = self.hist[2].copy()
@@ -151,6 +174,7 @@ class Sim:
                 if self.fl_t[i] >= self.fl_T[i]:
                     self.fl_on[i] = False
                     if self.fl_ok[i]:
+                        self.arrival_gap.append(float(np.hypot(*(self.hist[2][i, self.fl_slot[i]] - self.fl_p1[i]))))
                         self.holder[i] = self.ids[i, self.fl_slot[i]]
                         self.ball[i] = B.held_position(self.hist[2][i, self.fl_slot[i]])
                     else:
@@ -189,6 +213,31 @@ class Sim:
             self.shot_info[i] = [float(np.hypot(*(BASKET - S))), xp, self.shot_clock[i], self.elapsed[i]]
             self._finish(i, 1, float(xp))
 
+    RECV_CAP = 18.0      # ft/s: the receiver is steered towards the ball's arrival point at no more than this speed
+
+    def _launch(self, i, P, T, slot, ok):
+        """Start a pass flight. With lead_pass the ball goes in a straight line to the point the receiver is expected to reach (his position plus his
+        current velocity over the flight time, receiver speed capped), not to where he stood at release."""
+        P, T = np.asarray(P, float), np.asarray(T, float)
+        vT = (self.hist[2][i, slot] - self.hist[1][i, slot]) / DT
+        tgt = T.copy()
+        if self.lead_pass:
+            tf = B.flight_time(P, T)
+            for _ in range(3):
+                disp = vT * tf
+                n = np.hypot(*disp)
+                if n > self.RECV_CAP * tf:
+                    disp = disp / n * self.RECV_CAP * tf
+                tgt = np.array([np.clip(T[0] + disp[0], 0, 94), np.clip(T[1] + disp[1], 0, 50)])
+                tf = B.flight_time(P, tgt)
+        self.fl_on[i] = True
+        self.fl_p0[i], self.fl_p1[i] = P, tgt
+        self.fl_T[i] = B.flight_time(P, tgt)
+        self.fl_t[i] = 0.0
+        self.fl_slot[i] = slot
+        self.fl_ok[i] = ok
+        self.holder[i] = 0
+
     def _passes(self, ii, tgt_p, pos_in_idx):
         if len(ii) == 0:
             return
@@ -217,13 +266,7 @@ class Sim:
             if masked:
                 self.n_pass_fail_mask[i] += 1
             self.pass_len[i].append(float(np.hypot(*(T - P))))
-            self.fl_on[i] = True
-            self.fl_p0[i], self.fl_p1[i] = P, T
-            self.fl_T[i] = B.flight_time(P, T)
-            self.fl_t[i] = 0.0
-            self.fl_slot[i] = t
-            self.fl_ok[i] = ok
-            self.holder[i] = 0
+            self._launch(i, P, T, t, ok)
 
     def _passes_fixed(self, ii, slots):
         """Passes chosen by the caller: outcome from the cached difficulty row of the chosen (passer, receiver)."""
@@ -235,13 +278,7 @@ class Sim:
             pc, _ = self.caller.pass_cache.pop(int(i), (1.0, True))
             self.n_pass[i] += 1
             self.pass_len[i].append(float(np.hypot(*(T - P))))
-            self.fl_on[i] = True
-            self.fl_p0[i], self.fl_p1[i] = P, T
-            self.fl_T[i] = B.flight_time(P, T)
-            self.fl_t[i] = 0.0
-            self.fl_slot[i] = t
-            self.fl_ok[i] = bool(self.rng.random() < pc)
-            self.holder[i] = 0
+            self._launch(i, P, T, t, bool(self.rng.random() < pc))
 
     def play_descriptors(self, window=6.0):
         """Descriptors of the first `window` s after midcourt for episodes that lasted long enough (t_front at the end >= window). -> (idx, X)"""
