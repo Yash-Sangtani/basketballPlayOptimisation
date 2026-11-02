@@ -75,24 +75,37 @@ def main():
         P = rot(T[s]) if b_off else T[s]
         abs_pos[s] = P
         abs_ball[s] = rot(Bt[s]) if b_off else Bt[s]
+    Bz = np.stack(eng.ball_traj)[:, 0, 2]
     keep = np.flatnonzero(Ck[0] - Ck <= a.seconds)
+    S0, S1 = keep[0], keep[-1]
+    UP = 3
+    ts = np.linspace(S0, S1, (S1 - S0) * UP + 1)               # real time: 5 states per second, 3 frames per state, 15 frames per second
+    src = np.arange(len(T))
+
+    def lerp(arr):
+        return np.stack([np.interp(ts, src, arr[:, ..., c].reshape(len(arr), -1)[:, j]) for j in range(1) for c in range(1)], 0)
+    P_i = np.zeros((len(ts), 10, 2))
+    for r in range(10):
+        for c in range(2):
+            P_i[:, r, c] = np.interp(ts, src, abs_pos[:, r, c])
+    Bx, By, Bzi = (np.interp(ts, src, v) for v in (abs_ball[:, 0], abs_ball[:, 1], Bz))
     fig, ax = plt.subplots(figsize=(8.4, 4.8), dpi=60)
 
     def draw(f):
-        s = keep[f]
+        s = int(round(ts[f]))
         ax.clear()
         court(ax)
-        team = (O[s] >= 5)
+        team = (O[min(s, len(O) - 1)] >= 5)
         for r in range(10):
-            ax.scatter([abs_pos[s, r, 0]], [abs_pos[s, r, 1]], s=75, c='#1f77b4' if team[r] else '#d62728', zorder=3)
-        ax.scatter([abs_ball[s, 0]], [abs_ball[s, 1]], s=36, c='#ff9f1c', ec='k', zorder=5)
+            ax.scatter([P_i[f, r, 0]], [P_i[f, r, 1]], s=75, c='#1f77b4' if team[r] else '#d62728', zorder=3)
+        ax.scatter([Bx[f]], [By[f]], s=14 + 4.5 * Bzi[f], c='#ff9f1c', ec='k', zorder=5)      # the ball is drawn larger the higher it is
         m, sec = divmod(max(Ck[s], 0), 60)
-        ax.set_title(f'Q{q}  {int(m)}:{int(sec):02d}   red (A) {int(Sc[s, 0])} - {int(Sc[s, 1])} (B) blue   ({"A" if O[s, 0] < 5 else "B"} on offence)', fontsize=9)
+        ax.set_title(f'Q{q}  {int(m)}:{int(sec):02d}   red (A) {int(Sc[s, 0])} - {int(Sc[s, 1])} (B) blue   ({"A" if O[s, 0] < 5 else "B"} on offence)   ball height {Bzi[f]:.1f} ft', fontsize=9)
 
-    ani = animation.FuncAnimation(fig, draw, frames=len(keep), interval=1000 / 12)
+    ani = animation.FuncAnimation(fig, draw, frames=len(ts), interval=1000 / 15)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    ani.save(a.out, writer=animation.PillowWriter(fps=12))
-    print(f'wrote {a.out} ({os.path.getsize(a.out) / 1e6:.1f} MB, {len(keep)} frames, final score {int(Sc[keep[-1], 0])}-{int(Sc[keep[-1], 1])})')
+    ani.save(a.out, writer=animation.PillowWriter(fps=15))
+    print(f'wrote {a.out} ({os.path.getsize(a.out) / 1e6:.1f} MB, {len(ts)} frames (real time, 15 fps), final score {int(Sc[keep[-1], 0])}-{int(Sc[keep[-1], 1])})')
 
 
 if __name__ == '__main__':

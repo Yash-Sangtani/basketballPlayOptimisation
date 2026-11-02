@@ -86,8 +86,20 @@ class Engine:
         self.off_team = np.zeros(N, int)         # 0 = roster slots 0-4 of R_ are on offence (A), 1 = B; A starts on offence
         self.dead = np.zeros(N)                  # seconds of dead ball left
         self.dead_kind = np.zeros(N, int)        # what happens when the dead time ends: 0 none, 1 inbound at baseline, 2 inbound at the ball spot
-        self.reb_t = np.full(N, -1.0)            # >= 0: a missed shot is in the air / rebound pending
+        self.reb_t = np.full(N, -1.0)            # >= 0: the rebounder has been chosen and the ball is travelling from the rim to him
         self.reb_info = [None] * N
+        self.reb_sel = [None] * N                # (slot, offensive?)
+        self.reb_T = np.full(N, 0.6)
+        self.shot_t = np.full(N, -1.0)           # >= 0: a shot is in the air (ball on its arc towards the rim)
+        self.shot_T = np.zeros(N)
+        self.shot_p0 = np.zeros((N, 2))
+        self.shot_kind = np.zeros(N, int)        # 1 made, 2 missed
+        self.shot_and1 = np.zeros(N, bool)
+        self.dead_inb = np.full(N, -1)           # slot of the inbounder while the ball is dead
+        self.dead_total = np.ones(N)
+        self.dead_ball0 = np.zeros((N, 2))
+        self.dead_spot = np.zeros((N, 2))
+        self.fl_icp = np.full(N, -1)             # defender slot that will take a failed pass
         self.play = np.full(N, -1, np.int32)
         self.alive = np.ones(N, bool)
         self.score = np.zeros((N, 2))
@@ -135,6 +147,7 @@ class Engine:
         self.crossed[i] = self.ball[i, 0] < 47.0
         self.fl_on[i] = False
         self.reb_t[i] = -1.0
+        self.shot_t[i] = -1.0
         self.stats['poss'][i, self._off(i)] += 1
         self._new_possession_play(i)
 
@@ -158,20 +171,32 @@ class Engine:
             tok, ctx = np.concatenate([tok, tx], axis=2), np.concatenate([ctx, cx], axis=1)
         return tok, ctx
 
-    def _inbound(self, i, baseline):
-        """Place the ball with an inbounder of the offence: under the basket just scored on (baseline) or at the spot where the ball went out."""
+    def _start_dead(self, i, kind, seconds, spot):
+        """The ball is dead for `seconds`: the nearest guard (or nearest player) of the new offence walks to `spot` to inbound while everyone else keeps moving;
+        kind 1 = under the basket just scored on (the ball travels from the rim to him), kind 2 = out of bounds at `spot`."""
+        if kind == 1:
+            seconds = max(seconds, float(np.hypot(*(self.hist[2][i, :5] - self.ball[i, :2]).T).min()) / 35.0)
+        self.dead[i] = seconds
+        self.dead_total[i] = max(seconds, 0.1)
+        self.dead_kind[i] = kind
+        self.dead_spot[i] = spot
+        self.dead_ball0[i] = self.ball[i, :2]
         pcs = np.take_along_axis(self.R_pc[i], self.order[i], axis=0)[:5]
-        cand = np.flatnonzero(pcs <= 1)
-        s = int(self.rng.choice(cand if len(cand) else np.arange(5)))
-        if baseline:
-            spot = np.array([92.5, 25.0 + self.rng.uniform(-3, 3)])
-        else:
-            spot = np.clip(self.ball[i, :2], [1, 1], [93, 49])
-        for h in range(3):
-            self.hist[h][i, s] = spot
-        self._set_holder(i, s)
+        d = np.hypot(*(self.hist[2][i, :5] - spot).T)
+        pen = np.where(pcs <= 1, 0.0, 12.0)
+        self.dead_inb[i] = int(np.argmin(d + pen))
+        self.holder[i] = 0
         self.crossed[i] = False
         self.t_front[i] = 0.0
+
+    def _end_dead(self, i):
+        s = int(self.dead_inb[i])
+        self.dead[i] = 0.0
+        self.dead_kind[i] = 0
+        self.dead_inb[i] = -1
+        self._set_holder(i, s)
+        self.crossed[i] = self.ball[i, 0] < 47.0
+        self.shot_clock[i] = 24.0
 
     # ------------------------------------------------------------------ events
     def _team_stat(self, i, name, v=1.0, team=None):
@@ -208,20 +233,23 @@ class Engine:
             return
         self.stats['fga'][i, off] += 1
         self.stats['fg3a'][i, off] += int(is3)
-        if self.rng.random() < pm:
+        made = bool(self.rng.random() < pm)
+        # the ball leaves the shooter's hand and follows an arc to the rim; the result is applied when it gets there
+        self.holder[i] = 0
+        self.shot_t[i] = 0.0
+        self.shot_p0[i] = S
+        self.shot_T[i] = B.shot_time(S, BASKET)
+        self.shot_kind[i] = 1 if made else 2
+        self.reb_info[i] = (dist, is3)
+        self.shot_and1[i] = False
+        if made:
             pts = 3 if is3 else 2
             self.stats['fgm'][i, off] += 1
             self.stats['fg3m'][i, off] += int(is3)
             self.score[i, off] += pts
             self.stats['pts'][i, off] += pts
-            if self.rng.random() < self.P['ft']['and_one_per_make']:
-                self._free_throws(i, 1, shooter_ft, final_rebound_dist=14.0)
-            else:
-                self._after_make(i)
-        else:                                                         # miss: the ball is in the air; the rebound resolves in ~1.6 s
-            self.holder[i] = 0
-            self.reb_t[i] = 1.6
-            self.reb_info[i] = (dist, is3)
+            self.shot_and1[i] = bool(self.rng.random() < self.P['ft']['and_one_per_make'])
+            self.reb_info[i] = (dist, is3, float(shooter_ft))
 
     def _free_throws(self, i, n, p_ft, final_rebound_dist):
         off = self._off(i)
@@ -235,25 +263,34 @@ class Engine:
                 self.stats['ftm'][i, off] += 1
         self.score[i, off] += made
         self.stats['pts'][i, off] += made
-        self.holder[i] = 0
         self.fl_on[i] = False
+        self.ball[i] = B.held_position(self.hist[2][i, self._ft_slot(i)])
         if last:                                                      # the final free throw decides: made -> the other team inbounds
-            self._after_make(i, charge=1.0)
-        else:                                                         # missed -> live rebound
-            self.reb_t[i] = 1.2
+            self._after_make(i, seconds=2.0)
+        else:                                                         # missed -> a short arc to the rim, then a live rebound
+            self.shot_t[i] = 0.0
+            self.shot_p0[i] = np.array([BASKET[0] + 15.0, 25.0])
+            self.shot_T[i] = B.shot_time(self.shot_p0[i], BASKET)
+            self.shot_kind[i] = 2
+            self.holder[i] = 0
             self.reb_info[i] = (final_rebound_dist, False)
 
-    def _after_make(self, i, charge=None):
+    def _ft_slot(self, i):
+        s = self._holder_slot(i)
+        return s if s >= 0 else 0
+
+    def _after_make(self, i, seconds=None):
+        """A basket (or a made final free throw): the other team inbounds under that basket after `seconds`."""
         self.holder[i] = 0
         self.fl_on[i] = False
+        self.ball[i, :2] = BASKET
+        self.ball[i, 2] = B.RIM_Z - 3.0
         self._flip(i)
-        self.dead[i] = self.dead_make if charge is None else charge
-        self.dead_kind[i] = 1
-        self.game_clock[i] -= 0.0
+        self._start_dead(i, 1, self.dead_make if seconds is None else seconds, np.array([92.5, 25.0 + self.rng.uniform(-3, 3)]))
 
-    def _rebound(self, i):
-        dist, is3 = self.reb_info[i]
-        self.reb_t[i] = -1.0
+    def _pick_rebounder(self, i):
+        info = self.reb_info[i]
+        dist, is3 = info[0], info[1]
         bins = self.P['orb_bins']
         b = int(np.clip(np.searchsorted(bins, dist, side='right') - 1, 0, len(bins) - 2))
         p_orb = self.P['orb']['1' if is3 else '0'][b]
@@ -266,6 +303,15 @@ class Engine:
         p = np.exp(z[sl] - z[sl].max())
         p /= p.sum()
         s = int(sl[self.rng.choice(5, p=p)])
+        self.reb_sel[i] = (s, orb)
+        d_ = float(np.hypot(*(self.hist[2][i, s] - BASKET)))
+        self.reb_T[i] = max(0.5, d_ / 35.0)                    # the ball comes off the rim and travels to the rebounder at no more than ~35 ft/s
+        self.reb_t[i] = self.reb_T[i]
+        self.dead_ball0[i] = BASKET
+
+    def _apply_rebound(self, i):
+        s, orb = self.reb_sel[i]
+        self.reb_t[i] = -1.0
         off = self._off(i)
         self.stats['orb' if orb else 'drb'][i, off if orb else 1 - off] += 1
         if orb:
@@ -289,9 +335,9 @@ class Engine:
             self._flip(i)
             self._set_holder(i, nearest_slot - 5)
         else:
+            spot = np.clip(rot(self.ball[i, :2]), [1.0, 1.0], [93.0, 49.0])
             self._flip(i)
-            self.dead[i] = self.dead_oob
-            self.dead_kind[i] = 2
+            self._start_dead(i, 2, self.dead_oob, spot)
 
     # ------------------------------------------------------------------ passes
     def _pass(self, i, tgt_p):
@@ -323,19 +369,12 @@ class Engine:
         self.fl_p0[i], self.fl_p1[i] = P, tgt
         self.fl_T[i], self.fl_t[i] = B.flight_time(P, tgt), 0.0
         self.fl_slot[i], self.fl_ok[i] = t, ok
+        self.fl_icp[i] = int(5 + np.argmin(np.hypot(*(self.hist[2][i, 5:] - tgt).T)))
         self.holder[i] = 0
 
     # ------------------------------------------------------------------ one block
     def step_block(self):
-        live = self.alive & (self.dead <= 0)
-        dead = self.alive & (self.dead > 0)
-        for i in np.flatnonzero(dead):
-            self._advance_clock(i, BLOCK * DT, running=self.dead_kind[i] != 0 and self.dead_charge(i))
-            self.dead[i] -= BLOCK * DT
-            if self.dead[i] <= 0:
-                self._inbound(i, baseline=(self.dead_kind[i] == 1))
-                self.dead_kind[i] = 0
-        idx = np.flatnonzero(live)
+        idx = np.flatnonzero(self.alive)
         if len(idx):
             self._live_block(idx)
         for i in np.flatnonzero(self.alive):
@@ -343,15 +382,9 @@ class Engine:
                 self.alive[i] = False
         return bool(self.alive.any())
 
-    def dead_charge(self, i):
-        return True
-
-    def _advance_clock(self, i, dt, running=True):
-        if running:
-            self.game_clock[i] -= dt
-
     def _live_block(self, idx):
         tok, ctx = self._tokens(idx)
+        order_pred = self.order[idx].copy()                 # the slot order (and court frame) the predicted movement belongs to
         o = self.model.predict([tok, ctx], verbose=0, batch_size=2048)
         w, mu, lv = mixture_stats(o['mix'])
         n = len(idx)
@@ -360,7 +393,7 @@ class Engine:
         m = np.take_along_axis(mu, k[:, :, None, None, None], axis=2)[:, :, 0]
         s = np.exp(0.5 * np.take_along_axis(lv, k[:, :, None, None, None], axis=2)[:, :, 0])
         step = m + self.rng.standard_normal((n, 10, 1, 2)) * self.tau * s
-        can = (~self.fl_on[idx]) & (self.holder[idx] != 0) & (self.reb_t[idx] < 0)
+        can = (~self.fl_on[idx]) & (self.holder[idx] != 0) & (self.reb_t[idx] < 0) & (self.shot_t[idx] < 0) & (self.dead[idx] <= 0)
         hz = 1.0 - (1.0 - np.clip(o['dec'] * np.array([self.shoot_scale, self.pass_scale, 1.0]), 0, 0.999)) ** (BLOCK * DT / 2.0)
         for r_, i in enumerate(idx):
             if not can[r_]:
@@ -383,14 +416,26 @@ class Engine:
         for s_ in range(BLOCK):
             pos = p0[idx] + step[:, :, s_, :] * Y_SCALE
             for r_, i in enumerate(idx):
-                if self.fl_on[i] and self.fl_ok[i] and self.alive[i]:
-                    sl = self.fl_slot[i]
+                if not self.alive[i]:
+                    continue
+                if self.fl_on[i]:                                   # the receiver (or, on a failed pass, the defender who takes it) meets the ball
+                    sl = self.fl_slot[i] if self.fl_ok[i] else self.fl_icp[i]
                     cur = self.hist[2][i, sl]
                     to = self.fl_p1[i] - cur
                     dist = float(np.hypot(*to))
                     if dist > 1e-6:
                         rem = max(self.fl_T[i] - self.fl_t[i], DT)
                         pos[r_, sl] = cur + to / dist * min(dist / rem, 18.0) * DT
+                elif self.dead[i] > 0 and self.dead_inb[i] >= 0:     # the inbounder walks to the spot where the ball will be put in play
+                    sl = int(self.dead_inb[i])
+                    cur = self.hist[2][i, sl]
+                    to = self.dead_spot[i] - cur
+                    dist = float(np.hypot(*to))
+                    if dist > 1e-6:
+                        pos[r_, sl] = cur + to / dist * min(dist, 14.0 * DT)
+            flipped = (self.order[idx] != order_pred).any(1)       # possession changed during this block: the old prediction no longer applies, players hold position until the next block
+            if flipped.any():
+                pos[flipped] = self.hist[2][idx][flipped]
             pos[..., 0] = pos[..., 0].clip(0, 94)
             pos[..., 1] = pos[..., 1].clip(0, 50)
             full = self.hist[2].copy()
@@ -426,15 +471,52 @@ class Engine:
             if not self.alive[i]:
                 continue
             self.game_clock[i] -= DT
-            self.shot_clock[i] -= DT
-            self.t_in[i] += DT
-            if self.crossed[i]:
-                self.t_front[i] += DT
-            if self.reb_t[i] >= 0:
+            dead = self.dead[i] > 0
+            if not dead:
+                self.shot_clock[i] -= DT
+                self.t_in[i] += DT
+                if self.crossed[i]:
+                    self.t_front[i] += DT
+            if dead:                                                # dead ball: the ball goes to the inbounder (or waits out of bounds)
+                self.dead[i] -= DT
+                s = int(self.dead_inb[i])
+                if self.dead_kind[i] == 1:
+                    u = 1.0 - max(self.dead[i], 0.0) / self.dead_total[i]
+                    tgt = self.hist[2][i, s]
+                    xy = self.dead_ball0[i] + (tgt - self.dead_ball0[i]) * min(u * 1.25, 1.0)
+                    self.ball[i] = np.r_[xy, B.HELD_Z if u > 0.8 else B.HELD_Z * (0.3 + 0.7 * u)]
+                else:
+                    self.ball[i, :2] = self.dead_spot[i]
+                    self.ball[i, 2] = B.HELD_Z
+                if self.dead[i] <= 0:
+                    self._end_dead(i)
+                continue
+            if self.shot_t[i] >= 0:                                 # shot in the air
+                self.shot_t[i] += DT
+                if self.shot_t[i] < self.shot_T[i]:
+                    self.ball[i] = B.shot_position(self.shot_p0[i], BASKET, self.shot_t[i])
+                else:
+                    kind = self.shot_kind[i]
+                    self.shot_t[i] = -1.0
+                    self.ball[i] = np.r_[BASKET, B.RIM_Z]
+                    if kind == 1:
+                        if self.shot_and1[i]:
+                            sl = self.reb_info[i][2] if len(self.reb_info[i]) > 2 else self.P['ft']['ft_pct']
+                            self.holder[i] = self.ids(i)[0]
+                            self._free_throws(i, 1, sl, final_rebound_dist=14.0)
+                        else:
+                            self._after_make(i)
+                    else:
+                        self._pick_rebounder(i)
+                continue
+            if self.reb_t[i] >= 0:                                  # ball off the rim, travelling to the rebounder
                 self.reb_t[i] -= DT
-                self.ball[i] = np.r_[BASKET + np.array([0.0, 0.0]), 10.0] if self.reb_t[i] > 0.4 else self.ball[i]
+                s, orb = self.reb_sel[i]
+                u = 1.0 - max(self.reb_t[i], 0.0) / self.reb_T[i]
+                tgt = B.held_position(self.hist[2][i, s])
+                self.ball[i] = np.r_[self.dead_ball0[i] + (tgt[:2] - self.dead_ball0[i]) * u, B.RIM_Z + (B.HELD_Z - B.RIM_Z) * u]
                 if self.reb_t[i] <= 0:
-                    self._rebound(i)
+                    self._apply_rebound(i)
                 continue
             if self.fl_on[i]:
                 self.fl_t[i] += DT
@@ -443,10 +525,8 @@ class Engine:
                     if self.fl_ok[i]:
                         self._set_holder(i, int(self.fl_slot[i]))
                     else:
-                        P = self.fl_p1[i]
-                        near = int(5 + np.argmin(np.hypot(*(self.hist[2][i, 5:] - P).T)))
-                        self.ball[i, :2] = P
-                        self._turnover(i, bool(self.rng.random() < self.steal_share), near)
+                        self.ball[i, :2] = self.fl_p1[i]
+                        self._turnover(i, bool(self.rng.random() < self.steal_share), int(self.fl_icp[i]))
                         continue
                 else:
                     self.ball[i] = B.flight_position(self.fl_p0[i], self.fl_p1[i], self.fl_t[i])

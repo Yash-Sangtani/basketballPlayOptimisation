@@ -105,9 +105,10 @@ def main():
         om = x[6] if len(x) > 6 else 1.0
         sst = x[7] if len(x) > 7 else 0.55
         fcl = x[8] if len(x) > 8 else 1.2
+        doob = x[9] if len(x) > 9 else 2.0
         dmult = json.load(open(a.dist_mult)) if a.dist_mult else None
         t0 = time.time()
-        eng = Engine(model, diff, plays=pt, seed=a.seed, shoot_scale=ss, pass_scale=ps_, tov_mult=tm, foul_mult=fm, fail_keep=fk, dead_make=dm, dist_mult=dmult, orb_mult=om, steal_share=sst, force_clock=fcl).reset(G, table, starts)
+        eng = Engine(model, diff, plays=pt, seed=a.seed, shoot_scale=ss, pass_scale=ps_, tov_mult=tm, foul_mult=fm, fail_keep=fk, dead_make=dm, dist_mult=dmult, orb_mult=om, steal_share=sst, force_clock=fcl, dead_oob=doob).reset(G, table, starts)
         eng.run(a.max_blocks)
         sm = {k: float(v.sum(1).mean() / 2) for k, v in eng.stats.items()}
         sm['game_clock_left'] = float(eng.game_clock.mean())

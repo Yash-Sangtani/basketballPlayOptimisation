@@ -30,12 +30,14 @@ def render(sim, i, path, title, outcome_text):
     n = min(n, int(MAX_S / 0.2))
     T = np.stack(sim.traj)[:n + 1, i]                 # (S,10,2)
     Bt = np.stack(sim.ball_traj)[:n + 1, i, :2]
+    Bz = np.stack(sim.ball_traj)[:n + 1, i, 2]
     Ht = np.stack(sim.holder_traj)[:n + 1, i]
     ids = sim.ids[i]
     tt = np.linspace(0, n, n * UP + 1)
     src = np.arange(n + 1)
     P = np.stack([np.stack([np.interp(tt, src, T[:, p, c]) for c in (0, 1)], -1) for p in range(10)], 1)
     Bi = np.stack([np.interp(tt, src, Bt[:, c]) for c in (0, 1)], -1)
+    Bzi = np.interp(tt, src, Bz)
     hi = np.minimum(np.floor(tt).astype(int), n)
     fig, ax = plt.subplots(figsize=(4.6, 4.4), dpi=60)
 
@@ -48,7 +50,7 @@ def render(sim, i, path, title, outcome_text):
         for q in range(5):
             if h != 0 and ids[q] == h:
                 ax.add_patch(Circle(P[f, q], 1.9, fill=False, ec='k', lw=1.5, zorder=4))
-        ax.scatter([Bi[f, 0]], [Bi[f, 1]], s=40, c='#ff9f1c', ec='k', zorder=5)
+        ax.scatter([Bi[f, 0]], [Bi[f, 1]], s=14 + 4.5 * Bzi[f], c='#ff9f1c', ec='k', zorder=5)      # larger when higher
         last = f >= len(tt) - 1 - 6
         ax.set_title(title + f'   t={tt[f] * 0.2:.1f}s', fontsize=7, loc='left')
         if last:
