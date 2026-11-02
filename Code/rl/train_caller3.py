@@ -91,6 +91,7 @@ def main():
     ap.add_argument('--seed', type=int, default=3)
     ap.add_argument('--gif-every', type=int, default=10)
     ap.add_argument('--n-fit-games', type=int, default=0)
+    ap.add_argument('--reward', default='xpts', choices=['xpts', 'audited', 'audited_support'], help='audited: shots are worth the empirical points of real shots in the same distance/clock/defender bin; audited_support: also only allowed where >= 100 real shots share the bin')
     a = ap.parse_args()
     from api import PassValueModel
     os.makedirs(os.path.join(a.out, 'gifs'), exist_ok=True)
@@ -102,6 +103,10 @@ def main():
     model = keras.saving.load_model(a.model, compile=False, safe_mode=False, custom_objects=E.CUSTOM_OBJECTS)
     diff, lib, pt = PassValueModel(), PlayLibrary(), PlayTargets()
     caller = Caller(diff, beta=a.beta, lr=a.lr, seed=a.seed)
+    from shot_audit import AuditedShotValue
+    audited = AuditedShotValue() if a.reward != 'xpts' else None
+    if a.reward == 'audited_support':
+        caller.support, caller.min_support = audited, 100
     caller.set_play_prior(pt.freq)
     ck = {k: os.path.join(a.out, f) for k, f in (('pi', 'ckpt_pi.weights.h5'), ('v', 'ckpt_v.weights.h5'), ('pb', 'ckpt_play_b.npy'), ('h', 'train_history.json'))}
     hist, start_it = [], 0
@@ -113,8 +118,9 @@ def main():
         caller.play_b.assign(np.load(ck['pb']))
         log(f'resumed from iteration {start_it}')
     else:
-        load_old_policy(caller, a.start_weights)
-        log('started from the run-2 policy weights (shoot/pass part); play head at the prior')
+        if a.start_weights != 'none':
+            load_old_policy(caller, a.start_weights)
+        log('started from ' + ('zero residual (the executors own decisions)' if a.start_weights == 'none' else 'the run-2 policy weights') + '; play head at the prior')
     starts_fit = find_starts(FIT)
     log(f'{len(starts_fit)} training starts from {len(FIT)} games; lambda {LAMBDA}, success xPts >= {SUCCESS_XPTS}')
     for it in range(start_it, a.iters):
@@ -122,7 +128,7 @@ def main():
         rng = np.random.default_rng(a.seed * 100003 + it)
         sel = rng.choice(len(starts_fit), min(a.n, len(starts_fit)), replace=False)
         plays = caller.choose_plays(len(sel))
-        sim = Sim(model, diff, seed=a.seed * 1000 + it, play_targets=pt, **SIM).reset(FIT, table, [starts_fit[i] for i in sel], play=plays)
+        sim = Sim(model, diff, seed=a.seed * 1000 + it, play_targets=pt, shot_value=audited, **SIM).reset(FIT, table, [starts_fit[i] for i in sel], play=plays)
         sim.caller = caller
         sim.run()
         bonus, cl, reached, hit = play_bonus(sim, lib, plays, pt)

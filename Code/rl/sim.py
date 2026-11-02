@@ -34,13 +34,14 @@ END_NAMES = {0: 'running', 1: 'shot', 2: 'turnover', 3: 'violation', 4: 'timeout
 
 
 class Sim:
-    def __init__(self, model, diff, c_fail=1.16, mask_ood=True, tau=1.0, seed=0, shoot_scale=1.0, pass_scale=1.0, loss_rate=0.0, lead_pass=True, play_targets=None, epv=None):
+    def __init__(self, model, diff, c_fail=1.16, mask_ood=True, tau=1.0, seed=0, shoot_scale=1.0, pass_scale=1.0, loss_rate=0.0, lead_pass=True, play_targets=None, epv=None, shot_value=None, shot_log=None):
         self.model, self.diff, self.c_fail, self.mask_ood, self.tau = model, diff, c_fail, mask_ood, tau
         self.rng = np.random.default_rng(seed)
         self.shoot_scale, self.pass_scale, self.loss_rate = shoot_scale, pass_scale, loss_rate
         self.caller = None
         self.lead_pass = lead_pass
         self.pt, self.epv = play_targets, epv
+        self.shot_value, self.shot_log = shot_value, shot_log
         from executor_data import F_DIM
         self.cond = model.inputs[0].shape[-1] > F_DIM
         self.cur_epv = None
@@ -210,6 +211,14 @@ class Sim:
             xp = self.diff.shot_xpts(S, D, BASKET, vel, self.shot_clock[i])
             if not np.isfinite(xp):
                 xp = 0.0
+            if self.shot_value is not None or self.shot_log is not None:
+                from pass_features import shot_features
+                f = shot_features(S, D, BASKET, vel, self.shot_clock[i])
+                if f is not None:
+                    if self.shot_log is not None:
+                        self.shot_log.append(dict(i=int(i), dist=f['shot_dist'], elapsed=24.0 - float(self.shot_clock[i]), def1=f['def1'], xpts=float(xp)))
+                    if self.shot_value is not None:
+                        xp = float(self.shot_value(f['shot_dist'], 24.0 - float(self.shot_clock[i]), f['def1']))
             self.shot_info[i] = [float(np.hypot(*(BASKET - S))), xp, self.shot_clock[i], self.elapsed[i]]
             self._finish(i, 1, float(xp))
 

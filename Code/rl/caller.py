@@ -56,8 +56,9 @@ def batch_xpts(diff, items):
 
 
 class Caller:
-    def __init__(self, diff, beta=0.02, lr=3e-3, seed=0, learn=True, c_fail=0.10, n_steps=8):
+    def __init__(self, diff, beta=0.02, lr=3e-3, seed=0, learn=True, c_fail=0.10, n_steps=8, support=None, min_support=100):
         self.diff, self.beta, self.learn, self.c_fail, self.n_steps = diff, beta, learn, c_fail, n_steps
+        self.support, self.min_support = support, min_support
         keras.utils.set_random_seed(seed)
         self.rng = np.random.default_rng(seed + 1)
         self.pi = keras.Sequential([keras.Input((D_FEAT,)), keras.layers.Dense(32, activation='gelu'), keras.layers.Dense(32, activation='gelu'),
@@ -67,6 +68,7 @@ class Caller:
         self.opt_v = keras.optimizers.Adam(lr)
         self.buf = []
         self.pass_cache = {}
+        self.pass_pcs = []
         self.play_prior = None
         self.play_b = tf_.Variable(np.zeros(1, np.float32), name='play_b')
         self.opt_play = keras.optimizers.Adam(lr)
@@ -119,6 +121,13 @@ class Caller:
         prior[~valid_h] = [1, 0, 0, 0, 0, 0]
         prior_logp = np.log(np.clip(prior, 1e-9, 1.0))
         shoot_ok = ~(heave_self & (sim.shot_clock[G] > HEAVE_CLOCK))
+        if self.support is not None:       # shots are only available where real data has at least min_support shots in the same distance / clock / defender bin
+            from shot_audit import bin_index
+            hp = np.array([pos[r_, max(hslot[r_], 0)] for r_ in range(m)])
+            dd = np.hypot(*(hp - BASKET).T)
+            df = np.array([np.hypot(*(pos[r_, 5:] - hp[r_]).T).min() for r_ in range(m)])
+            bi, bj, bk = bin_index(dd, 24.0 - np.clip(sim.shot_clock[G], 0, 24), df)
+            shoot_ok &= self.support.cnt[bi, bj, bk] >= self.min_support
         mask = np.concatenate([np.ones((m, 1), bool), shoot_ok[:, None], okp], axis=1) & valid_h[:, None] | (~valid_h[:, None] & (np.arange(N_ACT) == 0)[None])
         # action features
         sc = np.clip(sim.shot_clock[G], 0, 24) / 24.0
@@ -158,6 +167,7 @@ class Caller:
         for r_ in np.flatnonzero(a >= 2):
             pslot[hold[r_]] = mates[r_, a[r_] - 2]
             self.pass_cache[int(G[r_])] = (float(pc[r_, a[r_] - 2]), bool(okp[r_, a[r_] - 2]))
+            self.pass_pcs.append(float(pc[r_, a[r_] - 2]))
         self.last_stats = dict(p_shoot=float(p[:, 1].mean()), p_pass=float(p[:, 2:].sum(1).mean()), kl=float((p * (np.log(np.clip(p, 1e-9, 1)) - np.where(mask, prior_logp, 0))).sum(1).mean()))
         return shoot, pslot
 
