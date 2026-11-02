@@ -59,3 +59,15 @@ class PlayTargets:
                 tok[n, r, 2 * h] = d[:, 0] / 20.0
                 tok[n, r, 2 * h + 1] = d[:, 1] / 20.0
         return tok, ctx
+
+
+def features4(self, pos, t_front, play, frontcourt):
+    """Like features(), for the full-court executors (v4): play goals only while the offence is in the front court and inside the 6-s window; context has a
+    third column, the front-court flag."""
+    N = len(pos)
+    act_play = np.where(np.asarray(frontcourt, bool), play, -1)
+    tok, ctx = self.features(pos, t_front, act_play)
+    return tok, np.concatenate([ctx, np.asarray(frontcourt, np.float32)[:, None]], axis=1)
+
+
+PlayTargets.features4 = features4

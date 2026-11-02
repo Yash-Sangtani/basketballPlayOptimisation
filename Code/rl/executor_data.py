@@ -74,7 +74,7 @@ def _has_event(ev, lo, hi):
     return (i < len(ev)) & (ev[np.minimum(i, len(ev) - 1)] <= hi)
 
 
-def game_samples(d, table, stride=3, rng=None, profile_mode='real', perm=None):
+def game_samples(d, table, stride=3, rng=None, profile_mode='real', perm=None, mask_mode='half'):
     """Samples of one game. profile_mode: 'real' (the player's profile), 'none' (zeros), 'shuffled' (another player's profile: `perm`
     maps player id -> player id)."""
     n = len(d['frame'])
@@ -85,7 +85,7 @@ def game_samples(d, table, stride=3, rng=None, profile_mode='real', perm=None):
     run_ok = (c[ks + FUT] - c[ks - HIST]) == (HIST + FUT)
     same_poss = d['poss_id'][ks - HIST] == d['poss_id'][ks + FUT]
     same_ids = (d['ids'][ks - HIST] == d['ids'][ks + FUT]).all(axis=1) & (d['ids'][ks] == d['ids'][ks + FUT]).all(axis=1)
-    hc = half_court_mask(d)[ks]
+    hc = half_court_mask(d)[ks] if mask_mode == 'half' else d['live'][ks]       # 'all_live': every live state (transition and back court included)
     sel = ks[run_ok & same_poss & same_ids & hc]
     sel = sel[::stride]
     if len(sel) == 0:
@@ -130,7 +130,7 @@ def game_samples(d, table, stride=3, rng=None, profile_mode='real', perm=None):
     return dict(tokens=tok, ctx=ctx, y=y, action=action, target_slot=target_slot, game_idx=np.full(len(sel), -1, np.int32), state=sel.astype(np.int32))
 
 
-def build(games, table, stride=3, max_n=None, seed=0, profile_mode='real', all_ids=None):
+def build(games, table, stride=3, max_n=None, seed=0, profile_mode='real', all_ids=None, mask_mode='half'):
     rng = np.random.default_rng(seed)
     perm = None
     if profile_mode == 'shuffled':
@@ -138,7 +138,7 @@ def build(games, table, stride=3, max_n=None, seed=0, profile_mode='real', all_i
         perm = dict(zip(ids.tolist(), rng.permutation(ids).tolist()))
     parts = []
     for gi, d in enumerate(games):
-        s = game_samples(d, table, stride, rng, profile_mode, perm)
+        s = game_samples(d, table, stride, rng, profile_mode, perm, mask_mode)
         if s is not None:
             s['game_idx'][:] = gi
             parts.append(s)

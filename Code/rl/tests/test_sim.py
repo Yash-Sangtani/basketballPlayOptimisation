@@ -27,6 +27,8 @@ class StubDiff:
 
 
 def _setup():
+    import keras
+    keras.utils.set_random_seed(0)
     games = [fake_game(300, seed=s) for s in range(2)]
     table = build_profiles(games)
     model = E.build_model(F_DIM, G_DIM, k_modes=3, d=32, n_layers=1, heads=2, ff=64)

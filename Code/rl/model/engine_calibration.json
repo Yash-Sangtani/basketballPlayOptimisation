@@ -1,0 +1,21 @@
+{
+ "shoot_scale": 1.45,
+ "pass_scale": 1.0,
+ "tov_mult": 0.65,
+ "foul_mult": 1.05,
+ "fail_keep": 0.3,
+ "dead_make": 3.0,
+ "orb_mult": 1.2,
+ "steal_share": 0.55,
+ "force_clock": 1.2,
+ "dist_mult": [
+  24.0,
+  0.53,
+  0.29,
+  0.165,
+  0.14,
+  0.74,
+  0.03,
+  0.04
+ ]
+}
