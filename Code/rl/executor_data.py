@@ -23,6 +23,8 @@ FUT = 5
 Y_SCALE = 3.0
 DT = 0.2
 G_DIM = 6
+DEC_H = 50        # frames: the decision label is 'shoots / passes within DEC_H frames after this state' (50 = 2 s, the Stage-2 definition; 10 = one 0.4-s engine block)
+DEC_BACK = 5
 
 
 def nearest_opp(p):
@@ -115,8 +117,8 @@ def game_samples(d, table, stride=3, rng=None, profile_mode='real', perm=None, m
             tgt_by[int(p_)] = (g['frame'].to_numpy(), g['actual_target'].to_numpy())
     for p in np.unique(hold[in_off]):
         m = in_off & (hold == p)
-        shoot = _has_event(shot_by.get(int(p), np.array([])), f0[m], f0[m] + 50)
-        passed = _has_event(pass_by.get(int(p), np.array([])), f0[m] - 5, f0[m] + 50)
+        shoot = _has_event(shot_by.get(int(p), np.array([])), f0[m], f0[m] + DEC_H)
+        passed = _has_event(pass_by.get(int(p), np.array([])), f0[m] - DEC_BACK, f0[m] + DEC_H)
         action[m] = np.where(shoot, 0, np.where(passed, 1, 2))
         if int(p) in tgt_by:                                      # who receives the first pass in the next 2 s
             pf, pt = tgt_by[int(p)]

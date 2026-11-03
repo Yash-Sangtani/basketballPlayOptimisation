@@ -30,6 +30,7 @@ from train_executor2 import mixture_stats   # noqa: E402
 from features import BASKET              # noqa: E402
 from engine_models import feats          # noqa: E402
 from pass_features import shot_features  # noqa: E402
+import defense as DF                     # noqa: E402
 
 BLOCK = 2
 PARAMS_PATH = os.path.join(HERE, 'model', 'engine_params.json')
@@ -44,9 +45,38 @@ def rot(x):
     return x
 
 
+class View:
+    """Read-only view of an Engine with the attribute names the Stage-4 Caller expects from the half-court simulator."""
+
+    def __init__(self, e):
+        self.e = e
+        self.ids = np.take_along_axis(e.R_ids, e.order, axis=1)
+
+    hist = property(lambda s: s.e.hist)
+    holder = property(lambda s: s.e.holder)
+    shot_clock = property(lambda s: s.e.shot_clock)
+    t_in = property(lambda s: s.e.t_in)
+    t_front = property(lambda s: s.e.t_front)
+    shoot_scale = property(lambda s: s.e.shoot_scale)
+    pass_scale = property(lambda s: s.e.pass_scale)
+    cur_epv = None
+    poss_count = property(lambda s: s.e.poss_count)
+    dec_h = property(lambda s: s.e.dec_h)
+
+    def shoot_adj(self, G, hslot, hz0):
+        """the engine's calibrated distance multiplier on the shoot hazard (so an agent starts from the same behaviour as the imitation engine)."""
+        e = self.e
+        out = hz0.copy()
+        for r_, i in enumerate(G):
+            if hslot[r_] >= 0:
+                dd_ = np.hypot(*(e.hist[2][i, hslot[r_]] - BASKET))
+                out[r_] = min(out[r_] * e.dist_mult[int(np.clip(np.searchsorted(e.dist_edges, dd_, side='right') - 1, 0, len(e.dist_mult) - 1))], 0.999)
+        return out
+
+
 class Engine:
     def __init__(self, model, diff, plays=None, seed=0, shoot_scale=1.0, pass_scale=1.0, tov_mult=1.0, dead_make=4.0, dead_oob=2.0, steal_share=0.55,
-                 foul_mult=1.0, params=None, tau=1.0, mask_ood=False, fail_keep=0.0, dist_mult=None, orb_mult=1.0, force_clock=1.2, force_p=0.9):
+                 foul_mult=1.0, params=None, tau=1.0, mask_ood=False, fail_keep=0.0, dist_mult=None, orb_mult=1.0, force_clock=1.2, force_p=0.9, gain=1.0, clock0=720.0, dec_h=2.0):
         self.model, self.diff, self.pt = model, diff, plays
         self.P = json.load(open(params or PARAMS_PATH))
         self.rng = np.random.default_rng(seed)
@@ -54,12 +84,20 @@ class Engine:
         self.dead_make, self.dead_oob, self.steal_share, self.foul_mult, self.tau, self.mask_ood = dead_make, dead_oob, steal_share, foul_mult, tau, mask_ood
         self.cond = model.inputs[0].shape[-1] > 32
         self.orb_mult = orb_mult
+        self.dec_h = dec_h                                  # horizon (s) of the executor's shoot/pass labels: the per-block hazard is 1-(1-p)^(0.4/dec_h)
+        self.gain, self.clock0 = gain, clock0              # gain: multiplier of every sampled movement step (speed calibration); clock0: quarter length in seconds
         self.force_clock, self.force_p = force_clock, force_p     # with <= force_clock s left on the shot clock the holder shoots with probability force_p (players get a shot up)
         self.fail_keep = fail_keep                      # share of failed passes that are only deflections the offence recovers (no turnover)
         self.dist_edges = np.array([0, 6, 12, 18, 22, 25, 28, 33, 200.0])
         self.dist_mult = np.ones(len(self.dist_edges) - 1) if dist_mult is None else np.asarray(dist_mult, float)   # multiplier of the shoot decision by distance bin (calibrated on the real shot mix)
         self.caller = None
-        self.defender_policy = None          # hook for Stage 6C: callable(engine, idx) -> per-defender modifiers (unused)
+        self.v5 = model.inputs[0].shape[-1] >= 32 + 6 + DF.DEF_TOK       # executor v5g: man features and a told defensive scheme
+        self.lib = DF.SchemeLibrary() if self.v5 else None
+        self.def_agent = [None, None]        # per roster team (0 = A, 1 = B): object with .decide(engine, idx, team) -> scheme ids (n,) ; None = defence is not told anything (imitation)
+        self.off_agent = [None, None]        # per roster team: object with .act(view, idx, can, o) -> (shoot (n,) bool, pass_slot (n,) int, -1 none); None = the executor's own decisions
+        self.def_period = 3.0                # seconds between the defence's scheme decisions (and one at every change of possession)
+        self.audit = None                    # AuditedShotValue: shot make probabilities are rescaled to the empirical points per shot where >= audit_support real shots exist
+        self.audit_support = 100
 
     # ------------------------------------------------------------------ setup
     def reset(self, games, table, starts):
@@ -78,7 +116,7 @@ class Engine:
                      np.stack([d['pos'][k] for d, k in zip(g, ks)]).astype(float)]
         self.holder = np.stack([d['holder'][k] for d, k in zip(g, ks)]).astype(np.int64)
         self.ball = np.stack([d['ball'][k] for d, k in zip(g, ks)]).astype(float)
-        self.game_clock = np.full(N, 720.0)
+        self.game_clock = np.full(N, float(self.clock0))
         self.shot_clock = np.full(N, 24.0)
         self.t_in = np.zeros(N)
         self.t_front = np.zeros(N)
@@ -115,6 +153,11 @@ class Engine:
         self.clock_traj = [self.game_clock.copy()]
         self.shot_log = []
         self.event_log = []
+        self.scheme = np.full((N, 2), -1, np.int64)       # scheme told to roster team A / B when it defends (-1 = nothing)
+        self.def_clock = np.full((N, 2), 99.0)
+        self.poss_count = np.zeros(N, np.int64)
+        self.poss_score0 = np.zeros((N, 2))
+        self.poss_log = []                                # (episode, possession number, offence roster team, points scored in the possession)
         for i in range(N):
             self.stats['poss'][i, 0] += 1
             self._new_possession_play(i)
@@ -137,6 +180,12 @@ class Engine:
 
     def _flip(self, i, holder_slot_new=None, ball_xy=None):
         """Change possession: the old defence becomes the offence (slots swap, coordinates rotate)."""
+        off0 = self._off(i)
+        self.poss_log.append((i, int(self.poss_count[i]), off0, float(self.score[i, off0] - self.poss_score0[i, off0])))
+        self.poss_count[i] += 1
+        self.poss_score0[i] = self.score[i]
+        self.scheme[i] = -1
+        self.def_clock[i] = 99.0
         self.order[i] = np.r_[self.order[i, 5:], self.order[i, :5]]
         for h in range(3):
             self.hist[h][i] = np.concatenate([rot(self.hist[h][i][5:]), rot(self.hist[h][i][:5])])
@@ -169,6 +218,18 @@ class Engine:
         if self.cond:
             tx, cx = self.pt.features4(self.hist[2][idx], self.t_front[idx], self.play[idx], self.crossed[idx])
             tok, ctx = np.concatenate([tok, tx], axis=2), np.concatenate([ctx, cx], axis=1)
+        if self.v5:
+            pos = self.hist[2][idx]
+            td = np.zeros((len(idx), 10, DF.DEF_TOK), np.float32)
+            td[:, 5:, :4] = DF.man_features(pos, self.ball[idx, :2])
+            dteam = 1 - (self.order[idx, 0] >= 5).astype(int)
+            sch = self.scheme[idx, dteam]
+            told = (sch >= 0) & self.crossed[idx]
+            if told.any():
+                gl = self.lib.goal(sch[told])
+                znow = self.lib.z(DF.knobs(pos[told], self.ball[idx][told, :2]))
+                td[np.flatnonzero(told)[:, None], np.arange(5, 10)[None, :], 4:] = np.concatenate([gl, gl - znow], axis=1)[:, None, :]
+            tok, ctx = np.concatenate([tok, td], axis=2), np.concatenate([ctx, told[:, None].astype(np.float32)], axis=1)
         return tok, ctx
 
     def _start_dead(self, i, kind, seconds, spot):
@@ -221,12 +282,20 @@ class Engine:
         if heave:
             pm, p3 = self.diff.ranges['heave_fg'], 1.0
         dist = float(np.hypot(*(BASKET - S)))
+        if self.audit is not None and not heave:                         # rescale to the empirical points per real shot where the real data supports it
+            from shot_audit import bin_index
+            bi, bj, bk = bin_index(np.array(dist), np.array(24.0 - float(np.clip(self.shot_clock[i], 0, 24))), np.array(f['def1']))
+            if self.audit.cnt[bi, bj, bk] >= self.audit_support:
+                xm = max(float(o['xpts'].iloc[0]), 0.05)
+                pm = float(np.clip(pm * np.clip(float(self.audit.val[bi, bj, bk]) / xm, 0.6, 1.3), 0.01, 0.95))
         is3 = bool(self.rng.random() < p3)
         shooter_ft = self.R_ft[i, self.order[i, s]]
         pf = (self.P['ft']['p_foul_3pt'] if is3 else self.P['ft']['p_foul_2pt']) * self.foul_mult
         off = self._off(i)
-        self.shot_log.append(dict(i=i, dist=dist, is3=is3, clock=float(self.shot_clock[i]), p_make=pm, def1=f['def1']))
+        rec = dict(i=i, dist=dist, is3=is3, clock=float(self.shot_clock[i]), p_make=pm, def1=f['def1'], fouled=False)
+        self.shot_log.append(rec)
         if self.rng.random() < pf:                                     # fouled in the act of shooting: free throws, no field-goal attempt
+            rec['fouled'] = True
             n = 3 if is3 else 2
             self.stats['fouled'][i, off] += 1
             self._free_throws(i, n, shooter_ft, final_rebound_dist=14.0)
@@ -340,15 +409,20 @@ class Engine:
             self._start_dead(i, 2, self.dead_oob, spot)
 
     # ------------------------------------------------------------------ passes
-    def _pass(self, i, tgt_p):
+    def _pass(self, i, tgt_p, force=None):
         s = self._holder_slot(i)
         if s < 0:
             return
         tp = tgt_p.copy()
         tp[s] = 0
-        if tp.sum() <= 0:
-            return
-        t = int(self.rng.choice(5, p=tp / tp.sum()))
+        if force is None:
+            if tp.sum() <= 0:
+                return
+            t = int(self.rng.choice(5, p=tp / tp.sum()))
+        else:
+            t = int(force)
+            if t == s:
+                return
         P, T = self.hist[2][i, s], self.hist[2][i, t]
         r = self.diff.predict_one(P, T, self.hist[2][i, 5:], self.shot_clock[i], (P - self.hist[1][i, s]) / DT, (T - self.hist[1][i, t]) / DT) if hasattr(self.diff, 'predict_one') else None
         if r is None:
@@ -382,7 +456,23 @@ class Engine:
                 self.alive[i] = False
         return bool(self.alive.any())
 
+    def _decide_def(self, idx):
+        """Defence scheme decisions: at every change of possession and every def_period seconds of the front court."""
+        if not self.v5:
+            return
+        deft = 1 - (self.order[idx, 0] >= 5).astype(int)
+        for dt in (0, 1):
+            ag = self.def_agent[dt]
+            if ag is None:
+                continue
+            sel = idx[(deft == dt) & self.crossed[idx] & (self.def_clock[idx, dt] >= self.def_period)]
+            if len(sel):
+                self.scheme[sel, dt] = ag.decide(self, sel, dt)
+                self.def_clock[sel, dt] = 0.0
+
     def _live_block(self, idx):
+        self._decide_def(idx)
+        self.def_clock[idx] += BLOCK * DT
         tok, ctx = self._tokens(idx)
         order_pred = self.order[idx].copy()                 # the slot order (and court frame) the predicted movement belongs to
         o = self.model.predict([tok, ctx], verbose=0, batch_size=2048)
@@ -392,14 +482,34 @@ class Engine:
         k = (np.cumsum(w, -1) < u).sum(-1).clip(0, w.shape[-1] - 1)
         m = np.take_along_axis(mu, k[:, :, None, None, None], axis=2)[:, :, 0]
         s = np.exp(0.5 * np.take_along_axis(lv, k[:, :, None, None, None], axis=2)[:, :, 0])
-        step = m + self.rng.standard_normal((n, 10, 1, 2)) * self.tau * s
+        step = (m + self.rng.standard_normal((n, 10, 1, 2)) * self.tau * s) * self.gain
         can = (~self.fl_on[idx]) & (self.holder[idx] != 0) & (self.reb_t[idx] < 0) & (self.shot_t[idx] < 0) & (self.dead[idx] <= 0)
-        hz = 1.0 - (1.0 - np.clip(o['dec'] * np.array([self.shoot_scale, self.pass_scale, 1.0]), 0, 0.999)) ** (BLOCK * DT / 2.0)
+        hz = 1.0 - (1.0 - np.clip(o['dec'] * np.array([self.shoot_scale, self.pass_scale, 1.0]), 0, 0.999)) ** (BLOCK * DT / self.dec_h)
+        agent_dec = {}
+        offt = (self.order[idx, 0] >= 5).astype(int)
+        for ot in (0, 1):
+            ag = self.off_agent[ot]
+            if ag is None:
+                continue
+            can_t = can & (offt == ot)
+            if can_t.any():
+                shoot_a, pslot_a = ag.act(View(self), idx, can_t, o)
+                for r_ in np.flatnonzero(can_t):
+                    agent_dec[r_] = (bool(shoot_a[r_]), int(pslot_a[r_]))
         for r_, i in enumerate(idx):
             if not can[r_]:
                 continue
             if self.shot_clock[i] <= self.force_clock and self.rng.random() < self.force_p:
                 self._shot(i)
+                continue
+            if r_ in agent_dec:
+                sh_, ps_ = agent_dec[r_]
+                if sh_:
+                    self._shot(i)
+                elif ps_ >= 0:
+                    self._pass(i, o['tgt'][r_], force=ps_)
+                else:
+                    self._tov_hazard(i)
                 continue
             sl_ = self._holder_slot(i)
             hz0 = hz[r_, 0]

@@ -72,6 +72,7 @@ def main():
     ap.add_argument('--configs', default='1.0:1.0:1.0:1.0', help='shoot:pass:tov:foul[:fail_keep[:dead_make]] per config, comma separated')
     ap.add_argument('--dist-mult', default=None, help='json file with the shoot multipliers by distance bin')
     ap.add_argument('--seed', type=int, default=0)
+    ap.add_argument('--calib', default=None, help='engine calibration json (v7: dec_h, dist_mult, audit flag ...); replaces --configs')
     ap.add_argument('--max-blocks', type=int, default=2400)
     a = ap.parse_args()
     from api import PassValueModel
@@ -97,6 +98,28 @@ def main():
     ci = pd.DataFrame(bs).quantile([0.025, 0.975])
     print(f'{len(starts)} simulated quarters; {len(real)} real team-quarters from the same games')
     out = dict(real=R.to_dict(), real_ci=ci.to_dict(), configs={})
+    if a.calib:
+        cal = json.load(open(a.calib))
+        audit = cal.pop('audit', False)
+        t0 = time.time()
+        eng = Engine(model, diff, plays=pt, seed=a.seed, **cal)
+        if audit:
+            from shot_audit import AuditedShotValue
+            eng.audit = AuditedShotValue()
+        eng.reset(G, table, starts)
+        eng.run(a.max_blocks)
+        sm = {k: float(v.sum(1).mean() / 2) for k, v in eng.stats.items()}
+        sm['game_clock_left'] = float(eng.game_clock.mean())
+        sm['unfinished'] = float(eng.alive.mean())
+        sl = pd.DataFrame(eng.shot_log)
+        sm['rim_share_tracking'] = float((sl.dist < 6).mean())
+        out['configs']['calib'] = sm
+        print(f'[calib] {time.time() - t0:.0f}s', json.dumps({k: round(v, 2) for k, v in sm.items()}))
+        json.dump(out, open(os.path.join(a.out, f'engine_validate_{a.split}_v7.json'), 'w'), indent=1, default=float)
+        for k in STATS:
+            if k in R:
+                print(f'  {k:7s} real {R[k]:7.2f} [{ci.loc[0.025, k]:.2f}, {ci.loc[0.975, k]:.2f}]  sim {sm[k]:.2f}  ' + ('inside' if ci.loc[0.025, k] <= sm[k] <= ci.loc[0.975, k] else 'OUTSIDE'))
+        return
     for cfg in a.configs.split(','):
         x = [float(v_) for v_ in cfg.split(':')]
         ss, ps_, tm, fm = x[:4]

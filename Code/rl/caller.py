@@ -56,8 +56,9 @@ def batch_xpts(diff, items):
 
 
 class Caller:
-    def __init__(self, diff, beta=0.02, lr=3e-3, seed=0, learn=True, c_fail=0.10, n_steps=8, support=None, min_support=100):
+    def __init__(self, diff, beta=0.02, lr=3e-3, seed=0, learn=True, c_fail=0.10, n_steps=8, support=None, min_support=100, rmax=None):
         self.diff, self.beta, self.learn, self.c_fail, self.n_steps = diff, beta, learn, c_fail, n_steps
+        self.rmax = RMAX if rmax is None else rmax                # bound of the logit residual (trust region)
         self.support, self.min_support = support, min_support
         keras.utils.set_random_seed(seed)
         self.rng = np.random.default_rng(seed + 1)
@@ -86,9 +87,11 @@ class Caller:
         G = idx[hold]
         pos = sim.hist[2][G]
         vel = (sim.hist[2][G] - sim.hist[1][G]) / DT
-        hz = 1.0 - (1.0 - np.clip(o['dec'][hold] * np.array([sim.shoot_scale, sim.pass_scale, 1.0]), 0, 0.999)) ** (0.4 / 2.0)
+        hz = 1.0 - (1.0 - np.clip(o['dec'][hold] * np.array([sim.shoot_scale, sim.pass_scale, 1.0]), 0, 0.999)) ** (0.4 / getattr(sim, 'dec_h', 2.0))
         hslot = np.array([int(np.flatnonzero(sim.ids[i, :5] == sim.holder[i])[0]) if (sim.ids[i, :5] == sim.holder[i]).any() else -1 for i in G])
         valid_h = hslot >= 0
+        if hasattr(sim, 'shoot_adj'):
+            hz[:, 0] = sim.shoot_adj(G, hslot, hz[:, 0])
         m = len(G)
         mates = np.zeros((m, 4), int)
         for r_, h in enumerate(hslot):
@@ -154,14 +157,14 @@ class Caller:
             hp = np.array([pos[r_, max(hslot[r_], 0)] for r_ in range(m)])
             F[:, 2 + j, 7] = np.hypot(*(tpos - hp).T) / 30.0
         ctx = np.stack([sc, tin, xp[:, 0], nd_self, np.where(okp, F[:, 2:, 4], -2).max(1), np.where(okp, xp[:, 1:], 0).max(1), F[:, 0, 12], epv_self / 2.0], axis=1).astype(np.float32)
-        logits = prior_logp + RMAX * np.tanh(np.asarray(self.pi(F.reshape(-1, D_FEAT))).reshape(m, N_ACT) / RMAX)
+        logits = prior_logp + self.rmax * np.tanh(np.asarray(self.pi(F.reshape(-1, D_FEAT))).reshape(m, N_ACT) / self.rmax)
         logits = np.where(mask, logits, -1e9)
         p = np.exp(logits - logits.max(1, keepdims=True))
         p /= p.sum(1, keepdims=True)
         u = self.rng.random(m)[:, None]
         a = (np.cumsum(p, 1) < u).sum(1).clip(0, N_ACT - 1)
         if self.learn:
-            self.buf.append(dict(F=F, mask=mask, prior=prior_logp, a=a, ctx=ctx, ep=G))
+            self.buf.append(dict(F=F, mask=mask, prior=prior_logp, a=a, ctx=ctx, ep=G, pc=(np.asarray(sim.poss_count)[G].copy() if hasattr(sim, 'poss_count') else None)))
         sh = a == 1
         shoot[hold[sh]] = True
         for r_ in np.flatnonzero(a >= 2):
@@ -211,7 +214,7 @@ class Caller:
         adv = (adv - tf.reduce_mean(adv)) / (tf.math.reduce_std(adv) + 1e-6)
         for _ in range(self.n_steps):
             with tf.GradientTape() as t:
-                res = RMAX * tf.tanh(tf.reshape(self.pi(tf.reshape(Ft, (-1, D_FEAT))), (-1, N_ACT)) / RMAX)
+                res = self.rmax * tf.tanh(tf.reshape(self.pi(tf.reshape(Ft, (-1, D_FEAT))), (-1, N_ACT)) / self.rmax)
                 lg = tf.where(mt, pt + res, -1e9)
                 lp = tf.nn.log_softmax(lg, axis=-1)
                 logp_a = tf.gather(lp, at, batch_dims=1)
