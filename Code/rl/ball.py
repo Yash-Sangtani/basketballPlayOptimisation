@@ -5,7 +5,7 @@
           and the state where the receiver is detected as holding the ball; 0.1 s is taken off for the detection delay), i.e. an average speed of about 22 ft/s
           for a 17-ft pass (real median 22.4 ft/s, 16.5 ft/s on 5-12 ft passes, 31.6 ft/s beyond 30 ft). Height: a parabola peaking at 4.67 + 0.0874 d ft
           (measured peak height of real passes).
-  shot    arc from the shooter's hand (about 8 ft) to the rim (10 ft) in T = 0.45 + 0.035 d seconds, peaking about 0.3 d + 1 ft above the straight line.
+  shot    arc from the shooter's shooting pocket (about 5 ft, so the ball rises smoothly out of his hands) to the rim (10 ft) in T = 0.45 + 0.035 d seconds, peaking about 0.3 d + 1.5 ft above the straight line.
 Whether a pass is caught or a shot goes in is decided elsewhere (difficulty and shot models).
 """
 import numpy as np
@@ -16,7 +16,7 @@ PASS_T0, PASS_T1 = 0.33, 0.0212
 PEAK0, PEAK1 = 4.67, 0.0874
 MIN_FLIGHT_S = 0.3
 RIM_Z = 10.0
-RELEASE_Z = 8.0
+RELEASE_Z = 5.0
 
 
 def held_position(holder_xy):
@@ -55,5 +55,5 @@ def shot_position(p0, rim, t):
     u = min(max(t / T, 0.0), 1.0)
     d = float(np.hypot(*(rim - p0)))
     xy = p0 + (rim - p0) * u
-    z = RELEASE_Z + (RIM_Z - RELEASE_Z) * u + 4.0 * (0.3 * d + 1.0) * u * (1 - u)
+    z = RELEASE_Z + (RIM_Z - RELEASE_Z) * u + 4.0 * (0.3 * d + 1.5) * u * (1 - u)
     return np.array([xy[0], xy[1], z])

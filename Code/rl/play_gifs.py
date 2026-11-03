@@ -74,11 +74,13 @@ def main():
         sel = idx[tf <= DUR]
         t = tf[tf <= DUR]
         pos = np.concatenate([d['pos'][sel], d['ball'][sel, None, :2]], axis=1)          # (T,11,2)
+        bz = d['ball'][sel, 2]
         hold = d['holder'][sel]
         ids = d['ids'][sel]
         tt = np.linspace(t[0], t[-1], (len(t) - 1) * UP + 1)
         P = np.stack([np.stack([np.interp(tt, t, pos[:, i, c]) for c in (0, 1)], -1) for i in range(11)], 1)
         hi = np.searchsorted(t, tt, side='right') - 1
+        Bz = np.interp(tt, t, bz)
         s = summ[(summ.cluster == k) & (summ.split == 'val')].iloc[0]
         fig, ax = plt.subplots(figsize=(4.6, 4.4), dpi=60)
 
@@ -91,7 +93,7 @@ def main():
             for q in range(5):
                 if ids[hi[f], q] == h and h != 0:
                     ax.add_patch(Circle(P[f, q], 1.9, fill=False, ec='k', lw=1.5, zorder=4))
-            ax.scatter([P[f, 10, 0]], [P[f, 10, 1]], s=40, c='#ff9f1c', ec='k', zorder=5)
+            ax.scatter([P[f, 10, 0]], [P[f, 10, 1]], s=14 + 4.5 * Bz[f], c='#ff9f1c', ec='k', zorder=5)      # larger when higher
             ax.set_title(f'play {k}: {int(s.n)} val poss, {s.fg_pts:.2f} FG pts/poss, {s.three_share * 100:.0f}% of shots 3s   t={tt[f] - tt[0]:.1f}s', fontsize=7, loc='left')
 
         ani = animation.FuncAnimation(fig, draw, frames=len(tt), interval=1000 / 15)

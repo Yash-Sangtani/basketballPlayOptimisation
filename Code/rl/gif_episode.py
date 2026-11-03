@@ -33,6 +33,17 @@ def render(sim, i, path, title, outcome_text):
     Bz = np.stack(sim.ball_traj)[:n + 1, i, 2]
     Ht = np.stack(sim.holder_traj)[:n + 1, i]
     ids = sim.ids[i]
+    if int(sim.end[i]) == 1:                           # the simulated possession ends at the shot: show the ball's flight to the rim instead of cutting at the release
+        import ball as B
+        p0 = Bt[-1].copy()
+        Tsh = B.shot_time(p0, np.array([5.35, 25.0]))
+        m = int(np.ceil(Tsh / 0.2))
+        ext = np.stack([B.shot_position(p0, np.array([5.35, 25.0]), 0.2 * (j + 1)) for j in range(m)])
+        T = np.concatenate([T, np.repeat(T[-1:], m, axis=0)])
+        Bz = np.concatenate([Bz, ext[:, 2]])
+        Bt = np.concatenate([Bt, ext[:, :2]])
+        Ht = np.concatenate([Ht, np.zeros(m, Ht.dtype)])
+        n = n + m
     tt = np.linspace(0, n, n * UP + 1)
     src = np.arange(n + 1)
     P = np.stack([np.stack([np.interp(tt, src, T[:, p, c]) for c in (0, 1)], -1) for p in range(10)], 1)
