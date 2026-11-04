@@ -152,6 +152,8 @@ class Engine:
         self.score_traj = [self.score.copy()]
         self.clock_traj = [self.game_clock.copy()]
         self.shot_log = []
+        self.box = {}                                     # (episode, player id) -> field goal / free throw box-score counts
+        self.last_shooter = np.zeros(N, np.int64)
         self.event_log = []
         self.scheme = np.full((N, 2), -1, np.int64)       # scheme told to roster team A / B when it defends (-1 = nothing)
         self.def_clock = np.full((N, 2), 99.0)
@@ -292,7 +294,9 @@ class Engine:
         shooter_ft = self.R_ft[i, self.order[i, s]]
         pf = (self.P['ft']['p_foul_3pt'] if is3 else self.P['ft']['p_foul_2pt']) * self.foul_mult
         off = self._off(i)
-        rec = dict(i=i, dist=dist, is3=is3, clock=float(self.shot_clock[i]), p_make=pm, def1=f['def1'], fouled=False)
+        pid = int(self.ids(i)[s])
+        self.last_shooter[i] = pid
+        rec = dict(i=i, dist=dist, is3=is3, clock=float(self.shot_clock[i]), p_make=pm, def1=f['def1'], fouled=False, pid=pid)
         self.shot_log.append(rec)
         if self.rng.random() < pf:                                     # fouled in the act of shooting: free throws, no field-goal attempt
             rec['fouled'] = True
@@ -303,6 +307,13 @@ class Engine:
         self.stats['fga'][i, off] += 1
         self.stats['fg3a'][i, off] += int(is3)
         made = bool(self.rng.random() < pm)
+        bx = self._bx(i, pid)
+        bx['fga'] += 1
+        bx['fg3a'] += int(is3)
+        if made:
+            bx['fgm'] += 1
+            bx['fg3m'] += int(is3)
+            bx['pts'] += 3 if is3 else 2
         # the ball leaves the shooter's hand and follows an arc to the rim; the result is applied when it gets there
         self.holder[i] = 0
         self.shot_t[i] = 0.0
@@ -320,16 +331,23 @@ class Engine:
             self.shot_and1[i] = bool(self.rng.random() < self.P['ft']['and_one_per_make'])
             self.reb_info[i] = (dist, is3, float(shooter_ft))
 
+    def _bx(self, i, pid):
+        return self.box.setdefault((int(i), int(pid)), dict(fga=0, fgm=0, fg3a=0, fg3m=0, fta=0, ftm=0, pts=0))
+
     def _free_throws(self, i, n, p_ft, final_rebound_dist):
         off = self._off(i)
+        bx = self._bx(i, self.last_shooter[i])
         made = 0
         last = False
         for k in range(n):
             self.stats['fta'][i, off] += 1
+            bx['fta'] += 1
             last = bool(self.rng.random() < p_ft)
             if last:
                 made += 1
                 self.stats['ftm'][i, off] += 1
+                bx['ftm'] += 1
+                bx['pts'] += 1
         self.score[i, off] += made
         self.stats['pts'][i, off] += made
         self.fl_on[i] = False
