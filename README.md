@@ -18,6 +18,7 @@ Regenerate with `python difficulty/make_animation.py --out ../docs/pass_difficul
 | `Code/difficulty/` | **Pass-difficulty model** for RL: `P(pass fails)` for any passer and teammate from one court state, plus a shot expected-points model and a small API. |
 | `Code/pass_model.py`, `Code/evaluation.py` | Grouped-by-game evaluation (no game is ever in both train and test), calibration, bootstrap intervals. |
 | `Code/value/` | Possession table from play-by-play and an expected-points state-value experiment (works end to end, not yet predictive; see its report). |
+| `Code/rl/` | **Reinforcement-learning testbed** built on the tracking data: behaviour models for all ten players (executors), a quarter-length game engine with shots, fouls, rebounds, turnovers and clocks, defensive schemes, offence and defence agents trained inside the engine, league self-play, a match mode with an HTML viewer, and audit scripts. It is a simulator for studying play-calling, not a predictor of real games. Prototype play GIFs are in `docs/plays/`. |
 | `Shots/` | Shot detection and shot-quality features (Dhruv), spacing and velocity analysis. |
 | (report kept in the private repo) | Every experiment written up with numbers, confidence intervals and what did not work. |
 | `Tracking_Data/` | Raw SportVU archives and play-by-play. |
